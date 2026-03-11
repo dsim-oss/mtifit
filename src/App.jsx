@@ -953,6 +953,308 @@ function ScheduleView({ clients }) {
   )
 }
 
+// ═══════════════════════════════════════════
+// HOURS TRACKER (shared component)
+// ═══════════════════════════════════════════
+
+// Mock hours data for demo mode
+const MOCK_HOURS = [
+  { id: "h1", date: "2026-03-11", clientName: "Sarah Mitchell", clientId: "sarah-mitchell", type: "training", hours: 1, note: "Lower body session" },
+  { id: "h2", date: "2026-03-11", clientName: "General", clientId: null, type: "programming", hours: 1.5, note: "Updated Sarah and Mike programs" },
+  { id: "h3", date: "2026-03-10", clientName: "Mike Chen", clientId: "mike-chen", type: "training", hours: 1, note: "Full body squat focus" },
+  { id: "h4", date: "2026-03-10", clientName: "Jenny Park", clientId: "jenny-park", type: "training", hours: 1, note: "Strength lower" },
+  { id: "h5", date: "2026-03-06", clientName: "Tom Russo", clientId: "tom-russo", type: "kinstretch", hours: 1, note: "Group class" },
+  { id: "h6", date: "2026-03-06", clientName: "Sarah Mitchell", clientId: "sarah-mitchell", type: "training", hours: 1, note: "Upper body push/pull" },
+  { id: "h7", date: "2026-03-05", clientName: "General", clientId: null, type: "admin", hours: 0.5, note: "Client intake call" },
+  { id: "h8", date: "2026-03-04", clientName: "Mike Chen", clientId: "mike-chen", type: "training", hours: 1, note: "Hinge focus" },
+]
+
+const ENTRY_TYPES = [
+  { value: "training", label: "Training", color: T.accent },
+  { value: "programming", label: "Programming", color: T.purple },
+  { value: "kinstretch", label: "Kinstretch", color: T.amber },
+  { value: "admin", label: "Admin", color: "#6B7280" },
+]
+
+function HoursLogForm({ clients, onSave, onCancel }) {
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const [clientId, setClientId] = useState("")
+  const [entryType, setEntryType] = useState("training")
+  const [hours, setHours] = useState("1")
+  const [note, setNote] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!hours || parseFloat(hours) <= 0) return
+    setSaving(true)
+    await onSave({ date, clientId: clientId || null, entryType, hours: parseFloat(hours), note })
+    setSaving(false)
+    setNote("")
+    setHours("1")
+  }
+
+  return (
+    <Card accent style={{ animation: "slideUp 0.3s ease" }}>
+      <Label>Log Hours</Label>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>DATE</label>
+            <Input value={date} onChange={setDate} type="date" />
+          </div>
+          <div>
+            <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>HOURS</label>
+            <Input value={hours} onChange={setHours} type="number" placeholder="1" style={{ textAlign: "center" }} />
+          </div>
+        </div>
+        <div>
+          <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>TYPE</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {ENTRY_TYPES.map(t => (
+              <Btn key={t.value} small active={entryType === t.value} onClick={() => setEntryType(t.value)} color={t.color}>{t.label}</Btn>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>CLIENT (optional)</label>
+          <select value={clientId} onChange={e => setClientId(e.target.value)} style={{
+            width: "100%", padding: "11px 14px", border: `1px solid ${T.mist}`, borderRadius: T.r.sm,
+            fontSize: 14, fontFamily: T.sans, outline: "none", backgroundColor: T.white, appearance: "auto",
+          }}>
+            <option value="">General / No specific client</option>
+            {clients.filter(c => c.status === "active").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>NOTE</label>
+          <Input value={note} onChange={setNote} placeholder="What did you work on?" />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+          <button type="submit" style={{ background: `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`, color: T.white, border: "none", padding: "10px 20px", borderRadius: T.r.sm, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.sans, boxShadow: "0 2px 6px rgba(0,0,0,0.12)" }}>
+            {saving ? "Saving..." : "Log Hours"}
+          </button>
+          {onCancel && <Btn onClick={onCancel}>Cancel</Btn>}
+        </div>
+      </form>
+    </Card>
+  )
+}
+
+function HoursTable({ entries, showDelete, onDelete }) {
+  const mobile = useIsMobile()
+  if (!entries.length) return <div style={{ textAlign: "center", padding: 40, color: "#9CA3AF" }}>No hours logged yet.</div>
+
+  // Group by date
+  const grouped = entries.reduce((acc, e) => {
+    if (!acc[e.date]) acc[e.date] = []
+    acc[e.date].push(e)
+    return acc
+  }, {})
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {Object.entries(grouped).map(([date, items]) => {
+        const dayTotal = items.reduce((s, e) => s + e.hours, 0)
+        const dateLabel = new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+        return (
+          <div key={date}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", marginBottom: 4 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: T.ink, letterSpacing: 0.5 }}>{dateLabel}</span>
+              <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: T.accent }}>{dayTotal}h</span>
+            </div>
+            {items.map(e => {
+              const typeInfo = ENTRY_TYPES.find(t => t.value === e.type) || ENTRY_TYPES[0]
+              return (
+                <div key={e.id} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  padding: "10px 12px", backgroundColor: T.warmBg, borderRadius: T.r.sm, marginBottom: 4,
+                  flexWrap: "wrap", gap: 8,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: typeInfo.color,
+                      backgroundColor: `${typeInfo.color}18`, padding: "3px 8px", borderRadius: 10,
+                      fontFamily: T.mono, letterSpacing: 0.5, whiteSpace: "nowrap",
+                    }}>{typeInfo.label.toUpperCase()}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{e.clientName}</div>
+                      {e.note && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.note}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 14, fontWeight: 700, color: T.ink }}>{e.hours}h</span>
+                    {showDelete && <button onClick={() => onDelete(e.id)} style={{ background: "none", border: "none", fontSize: 13, color: "#D1D5DB", cursor: "pointer", padding: 0 }} title="Delete">×</button>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function exportHoursCSV(entries, filename) {
+  const header = "Date,Client,Type,Hours,Note"
+  const rows = entries.map(e =>
+    `${e.date},"${e.clientName}",${e.type},${e.hours},"${(e.note || "").replace(/"/g, '""')}"`
+  )
+  const csv = [header, ...rows].join("\n")
+  const blob = new Blob([csv], { type: "text/csv" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename || `kristin-hours-${new Date().toISOString().split("T")[0]}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Trainer's hours view — log and see own hours
+function TrainerHoursView({ clients }) {
+  const [hours, setHours] = useState(MOCK_HOURS)
+  const [showForm, setShowForm] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!USE_MOCK) {
+      setLoading(true)
+      db.getHoursLog().then(setHours).catch(console.error).finally(() => setLoading(false))
+    }
+  }, [])
+
+  async function handleLog(entry) {
+    if (USE_MOCK) {
+      const newEntry = {
+        id: `h${Date.now()}`, date: entry.date,
+        clientName: entry.clientId ? (clients.find(c => c.id === entry.clientId)?.name || "General") : "General",
+        clientId: entry.clientId, type: entry.entryType, hours: entry.hours, note: entry.note,
+      }
+      setHours(prev => [newEntry, ...prev])
+    } else {
+      await db.logHours(entry)
+      const updated = await db.getHoursLog()
+      setHours(updated)
+    }
+    setShowForm(false)
+  }
+
+  const weekTotal = hours.filter(h => {
+    const d = new Date(h.date + "T12:00:00")
+    const now = new Date()
+    const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7)
+    return d >= weekAgo
+  }).reduce((s, h) => s + h.hours, 0)
+
+  const trainingHrs = hours.filter(h => h.type === "training").reduce((s, h) => s + h.hours, 0)
+  const progHrs = hours.filter(h => h.type === "programming").reduce((s, h) => s + h.hours, 0)
+
+  if (loading) return <Spinner />
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>My Hours</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Track your training and programming time</div></div>
+        <Btn active onClick={() => setShowForm(!showForm)} color={T.accent}>{showForm ? "Cancel" : "+ Log Hours"}</Btn>
+      </div>
+
+      <Grid cols={3} mobileCols={1} gap={12}>
+        <Card><Label color="#6B7280">This Week</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{weekTotal}h</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>of 10h cap</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 6 }}><div style={{ width: `${Math.min((weekTotal / 10) * 100, 100)}%`, height: 4, backgroundColor: weekTotal > 10 ? T.red : T.accent, borderRadius: 2, transition: "width 0.5s ease" }} /></div></Card>
+        <Card><Label color="#6B7280">Training Total</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.accent }}>{trainingHrs}h</div></Card>
+        <Card><Label color="#6B7280">Programming Total</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.purple }}>{progHrs}h</div></Card>
+      </Grid>
+
+      {showForm && <HoursLogForm clients={clients} onSave={handleLog} onCancel={() => setShowForm(false)} />}
+
+      <Card>
+        <Label>Recent Hours</Label>
+        <HoursTable entries={hours} />
+      </Card>
+    </div>
+  )
+}
+
+// Owner's hours view — see all hours with CSV export
+function OwnerHoursView({ clients }) {
+  const mobile = useIsMobile()
+  const [hours, setHours] = useState(MOCK_HOURS)
+  const [loading, setLoading] = useState(false)
+  const [dateRange, setDateRange] = useState("all")
+
+  useEffect(() => {
+    if (!USE_MOCK) {
+      setLoading(true)
+      db.getHoursLog().then(setHours).catch(console.error).finally(() => setLoading(false))
+    }
+  }, [])
+
+  async function handleDelete(id) {
+    if (USE_MOCK) {
+      setHours(prev => prev.filter(h => h.id !== id))
+    } else {
+      await db.deleteHoursEntry(id)
+      const updated = await db.getHoursLog()
+      setHours(updated)
+    }
+  }
+
+  // Filtered entries
+  const filtered = useMemo(() => {
+    if (dateRange === "all") return hours
+    const now = new Date()
+    const cutoff = new Date(now)
+    if (dateRange === "week") cutoff.setDate(now.getDate() - 7)
+    if (dateRange === "month") cutoff.setMonth(now.getMonth() - 1)
+    return hours.filter(h => new Date(h.date + "T12:00:00") >= cutoff)
+  }, [hours, dateRange])
+
+  const totalHrs = filtered.reduce((s, h) => s + h.hours, 0)
+  const trainingHrs = filtered.filter(h => h.type === "training").reduce((s, h) => s + h.hours, 0)
+  const progHrs = filtered.filter(h => h.type === "programming").reduce((s, h) => s + h.hours, 0)
+  const kinHrs = filtered.filter(h => h.type === "kinstretch").reduce((s, h) => s + h.hours, 0)
+  const adminHrs = filtered.filter(h => h.type === "admin").reduce((s, h) => s + h.hours, 0)
+
+  // Pay calculation
+  const trainingPay = trainingHrs * 40
+  const progPay = progHrs * 25
+  const kinPay = kinHrs * 40
+  const totalPay = trainingPay + progPay + kinPay
+
+  if (loading) return <Spinner />
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Kristin Hours</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Time tracking and payroll</div></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[{ id: "week", label: "Week" }, { id: "month", label: "Month" }, { id: "all", label: "All" }].map(r => (
+              <Btn key={r.id} small active={dateRange === r.id} onClick={() => setDateRange(r.id)}>{r.label}</Btn>
+            ))}
+          </div>
+          <Btn active onClick={() => exportHoursCSV(filtered)} color={T.ink}>Export CSV</Btn>
+        </div>
+      </div>
+
+      <Grid cols={4} mobileCols={2} gap={12}>
+        <Card><Label color="#6B7280">Total Hours</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{totalHrs}h</div></Card>
+        <Card><Label color={T.accent}>Training</Label><div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>{trainingHrs}h</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>${trainingPay} @ $40/hr</div></Card>
+        <Card><Label color={T.purple}>Programming</Label><div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>{progHrs}h</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>${progPay} @ $25/hr</div></Card>
+        <Card style={{ background: `linear-gradient(135deg, ${T.warmCloud}, #CCFBF120)` }}><Label color={T.accent}>Total Pay</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.green }}>${totalPay}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{kinHrs > 0 ? `+ ${kinHrs}h kinstretch ($${kinPay})` : ""}{adminHrs > 0 ? ` · ${adminHrs}h admin` : ""}</div></Card>
+      </Grid>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <Label>Hours Log</Label>
+          <span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280" }}>{filtered.length} entries</span>
+        </div>
+        <HoursTable entries={filtered} showDelete onDelete={handleDelete} />
+      </Card>
+    </div>
+  )
+}
+
 function TrainerView({ onLogout, allClients, exercises, onRefresh }) {
   const mobile = useIsMobile()
   const [page, setPage] = useAppHistory("roster")
@@ -960,11 +1262,12 @@ function TrainerView({ onLogout, allClients, exercises, onRefresh }) {
   const client = selectedClient ? allClients.find(c => c.id === selectedClient) : null
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Videos"]} onLogout={onLogout} />
+      <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Hours", "Videos"]} onLogout={onLogout} />
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "roster" && !selectedClient && <Roster clients={allClients} onSelect={setSelectedClient} />}
         {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Kristin" onRefresh={onRefresh} />}
         {page === "schedule" && <ScheduleView clients={allClients} />}
+        {page === "hours" && <TrainerHoursView clients={allClients} />}
         {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
@@ -1124,7 +1427,7 @@ function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
 
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <NavBar active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null); setShowAddClient(false); setShowImport(false) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Schedule", "Videos"]} onLogout={onLogout} />
+      <NavBar active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null); setShowAddClient(false); setShowImport(false) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Hours", "Schedule", "Videos"]} onLogout={onLogout} />
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "overview" && <OwnerOverview clients={allClients} onNav={setPage} />}
         {page === "clients" && !selectedClient && !showAddClient && !showImport && (
@@ -1139,6 +1442,7 @@ function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
         {page === "clients" && showAddClient && <div style={{ paddingTop: 24 }}><AddClientForm onSave={handleAddClient} onCancel={() => setShowAddClient(false)} /></div>}
         {page === "clients" && showImport && <div style={{ paddingTop: 24 }}><ImportTool onDone={async () => { setShowImport(false); if (onRefresh) await onRefresh() }} /></div>}
         {page === "clients" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Dr. Simunac" onRefresh={onRefresh} />}
+        {page === "hours" && <OwnerHoursView clients={allClients} />}
         {page === "schedule" && <ScheduleView clients={allClients} />}
         {page === "videos" && <VideosView exercises={exercises} />}
       </div>

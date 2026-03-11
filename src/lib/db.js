@@ -403,6 +403,57 @@ export async function uploadAttachment(file, clientId, programId) {
   return publicUrl
 }
 
+// ── Hours Log ──
+
+export async function getHoursLog(startDate, endDate) {
+  let query = supabase
+    .from("hours_log")
+    .select("*, clients(full_name)")
+    .order("logged_date", { ascending: false })
+  if (startDate) query = query.gte("logged_date", startDate)
+  if (endDate) query = query.lte("logged_date", endDate)
+  const { data, error } = await query
+  if (error) throw error
+  return data.map(h => ({
+    id: h.id,
+    date: h.logged_date,
+    clientName: h.clients?.full_name || "General",
+    clientId: h.client_id,
+    type: h.entry_type,
+    hours: Number(h.hours),
+    note: h.note || "",
+    createdAt: h.created_at,
+  }))
+}
+
+export async function getHoursForWeek(weekStart) {
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekEnd.getDate() + 6)
+  return getHoursLog(weekStart, weekEnd.toISOString().split("T")[0])
+}
+
+export async function logHours({ date, clientId, entryType, hours, note, loggedBy }) {
+  const { data, error } = await supabase
+    .from("hours_log")
+    .insert({
+      logged_date: date || new Date().toISOString().split("T")[0],
+      client_id: clientId || null,
+      entry_type: entryType,
+      hours,
+      note: note || "",
+      logged_by: loggedBy || null,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteHoursEntry(id) {
+  const { error } = await supabase.from("hours_log").delete().eq("id", id)
+  if (error) throw error
+}
+
 // ── Full Client Data Loader (assembles mock-shaped object) ──
 
 export async function loadFullClient(clientId) {

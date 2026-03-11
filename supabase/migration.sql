@@ -102,6 +102,18 @@ create table if not exists progress_snapshots (
   created_at timestamptz default now()
 );
 
+-- ── Hours Log (Kristin's time tracking) ──
+create table if not exists hours_log (
+  id uuid primary key default gen_random_uuid(),
+  logged_date date not null default current_date,
+  client_id uuid references clients(id) on delete set null,
+  entry_type text not null check (entry_type in ('training', 'programming', 'admin', 'kinstretch')),
+  hours numeric not null default 0,
+  note text default '',
+  logged_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+
 -- ── Training Logs (weekly volume) ──
 create table if not exists training_logs (
   id uuid primary key default gen_random_uuid(),
@@ -161,6 +173,7 @@ alter table training_logs enable row level security;
 alter table notes enable row level security;
 alter table exercises enable row level security;
 alter table attachments enable row level security;
+alter table hours_log enable row level security;
 
 -- Helper: get current user's role
 create or replace function get_user_role()
@@ -287,6 +300,19 @@ create policy "Read training logs"
 
 create policy "Staff manage training logs"
   on training_logs for all using (get_user_role() in ('owner', 'trainer'));
+
+-- ── Hours Log: trainer can insert/read own, owner reads all ──
+create policy "Owner reads all hours"
+  on hours_log for select using (get_user_role() = 'owner');
+
+create policy "Trainer reads own hours"
+  on hours_log for select using (logged_by = auth.uid());
+
+create policy "Trainer logs hours"
+  on hours_log for insert with check (get_user_role() in ('owner', 'trainer'));
+
+create policy "Owner manages hours"
+  on hours_log for all using (get_user_role() = 'owner');
 
 -- ── Notes ──
 create policy "Read notes"
