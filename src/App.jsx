@@ -72,6 +72,7 @@ const MOCK_CLIENTS = [
     id: "sarah-mitchell", name: "Sarah Mitchell", email: "sarah.m@gmail.com",
     startDate: "2025-11-04", plan: "2x/week, Tue/Thu", status: "active",
     nextSession: "Thu, Mar 13, 10:00 AM",
+    pack: { price: 750, total: 10, used: 7, purchaseDate: "2026-02-01", tier: "Founders Club" },
     goals: ["Improve hip stability", "Deadlift 185 lbs", "Run pain-free 5K"],
     notes: [
       { date: "Mar 11", from: "Kristin", text: "Great session today. Hip hinge is clicking. Add 10 lbs to RDL next week." },
@@ -157,6 +158,7 @@ const MOCK_CLIENTS = [
     id: "mike-chen", name: "Mike Chen", email: "mike.chen@email.com",
     startDate: "2026-01-13", plan: "2x/week, Mon/Wed", status: "active",
     nextSession: "Mon, Mar 16, 11:00 AM",
+    pack: { price: 800, total: 10, used: 4, purchaseDate: "2026-01-13", tier: "Standard" },
     goals: ["Improve squat depth", "Fix anterior pelvic tilt", "Build core strength"],
     notes: [{ date: "Mar 10", from: "Kristin", text: "Squat depth is improving. Ankle mobility still limiting. Added extra ankle warm-up." }],
     programming: {
@@ -199,6 +201,7 @@ const MOCK_CLIENTS = [
     id: "jenny-park", name: "Jenny Park", email: "jenny.p@email.com",
     startDate: "2025-09-15", plan: "3x/week, Mon/Wed/Fri", status: "active",
     nextSession: "Fri, Mar 14, 9:00 AM",
+    pack: { price: 750, total: 10, used: 9, purchaseDate: "2026-01-20", tier: "Founders Club" },
     goals: ["Half marathon prep", "Prevent runner's knee", "Single-leg strength"],
     notes: [
       { date: "Mar 7", from: "Kristin", text: "Added tempo single-leg RDL. She is nailing the balance work." },
@@ -253,6 +256,7 @@ const MOCK_CLIENTS = [
     id: "tom-russo", name: "Tom Russo", email: "tom.russo@email.com",
     startDate: "2026-02-10", plan: "1x/week, Thu (Kinstretch)", status: "active",
     nextSession: "Thu, Mar 13, 9:00 AM (Kinstretch)",
+    pack: { price: 850, total: 10, used: 2, purchaseDate: "2026-02-10", tier: "Standard" },
     goals: ["Improve hip mobility for golf", "Reduce low back stiffness"],
     notes: [{ date: "Mar 6", from: "Kristin", text: "First Kinstretch class. Struggled with hip CARs range. Good effort." }],
     programming: {
@@ -278,35 +282,6 @@ const MOCK_CLIENTS = [
   },
 ]
 
-const MOCK_EXERCISES = [
-  { id: "rdl", name: "Barbell RDL", category: "Hinge" },
-  { id: "bss", name: "Bulgarian Split Squat", category: "Squat" },
-  { id: "hip-thrust", name: "Hip Thrust", category: "Hinge" },
-  { id: "dead-bug", name: "Dead Bug w/ Band", category: "Core" },
-  { id: "shoulder-cars", name: "Shoulder CARs", category: "Mobility" },
-  { id: "hip-switches", name: "90/90 Hip Switches", category: "Mobility" },
-  { id: "hip-cars", name: "Hip CARs", category: "Mobility" },
-  { id: "clamshell", name: "Banded Clamshell", category: "Activation" },
-  { id: "db-bench", name: "DB Bench Press", category: "Push" },
-  { id: "cable-row", name: "Cable Row", category: "Pull" },
-  { id: "landmine", name: "Landmine Press", category: "Push" },
-  { id: "pallof", name: "Pallof Press", category: "Core" },
-  { id: "face-pull", name: "Face Pull", category: "Pull" },
-  { id: "farmer-carry", name: "Farmer Carry", category: "Carry" },
-  { id: "calf-raise", name: "Single-Leg Calf Raise", category: "Isolation" },
-  { id: "pull-apart", name: "Band Pull-Apart", category: "Activation" },
-  { id: "goblet-squat", name: "Goblet Squat", category: "Squat" },
-  { id: "sl-rdl", name: "Single-Leg RDL", category: "Hinge" },
-  { id: "step-up", name: "Step-Up", category: "Squat" },
-  { id: "box-jump", name: "Box Jump", category: "Power" },
-  { id: "trap-bar-dl", name: "Trap Bar Deadlift", category: "Hinge" },
-  { id: "push-up", name: "Push-Up", category: "Push" },
-  { id: "plank", name: "Plank", category: "Core" },
-  { id: "spine-cars", name: "Spine CARs", category: "Mobility" },
-  { id: "90-90-pails", name: "90/90 PAILs/RAILs", category: "Mobility" },
-]
-
-const VIDEO_CATS = ["All", "Mobility", "Activation", "Core", "Push", "Pull", "Hinge", "Squat", "Power", "Carry", "Isolation"]
 
 // ══════════════════════════════════════════
 // SHARED UI — warmer, with shadows and life
@@ -764,45 +739,18 @@ function ProgressView({ client }) {
   )
 }
 
-function VideosView({ exercises }) {
-  const mobile = useIsMobile()
-  const lib = exercises || MOCK_EXERCISES
-  const [search, setSearch] = useState("")
-  const [filter, setFilter] = useState("All")
-  const filtered = useMemo(() => lib.filter(v => (filter === "All" || v.category === filter) && (!search || v.name.toLowerCase().includes(search.toLowerCase()))), [filter, search, lib])
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
-      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Exercise Library</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{lib.length} exercises</div></div>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <Input value={search} onChange={setSearch} placeholder="Search exercises..." style={{ flex: 1, minWidth: 180 }} />
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflowX: "auto" }}>{VIDEO_CATS.map(c => <Btn key={c} small active={filter === c} onClick={() => setFilter(c)}>{c}</Btn>)}</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-        {filtered.map(v => (
-          <Card key={v.id} style={{ padding: 14 }} onClick={() => {}}>
-            <div style={{ width: "100%", height: 80, background: `linear-gradient(135deg, ${T.warmCloud}, ${T.accentLight})`, borderRadius: T.r.sm, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}><span style={{ fontSize: 20, color: T.accent }}>▶</span></div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, marginBottom: 4 }}>{v.name}</div>
-            <span style={{ fontFamily: T.mono, fontSize: 10, color: T.accent, fontWeight: 600, letterSpacing: 0.5 }}>{v.category.toUpperCase()}</span>
-          </Card>
-        ))}
-      </div>
-      {!filtered.length && <div style={{ textAlign: "center", padding: 40, color: "#9CA3AF" }}>No exercises match your search.</div>}
-    </div>
-  )
-}
 
-function ClientView({ client, onLogout, exercises }) {
+function ClientView({ client, onLogout }) {
   const mobile = useIsMobile()
   const [page, setPage] = useAppHistory("home")
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <NavBar active={page} onNav={setPage} name={client.name} tabs={["Home", "Programming", "Assessments", "Progress", "Videos"]} onLogout={onLogout} />
+      <NavBar active={page} onNav={setPage} name={client.name} tabs={["Home", "Programming", "Assessments", "Progress"]} onLogout={onLogout} />
       <div style={{ maxWidth: 960, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "home" && <ClientHome client={client} onNav={setPage} />}
         {page === "programming" && <ProgramView client={client} />}
         {page === "assessments" && <AssessmentView client={client} />}
         {page === "progress" && <ProgressView client={client} />}
-        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
@@ -1266,20 +1214,19 @@ function OwnerHoursView({ clients }) {
   )
 }
 
-function TrainerView({ onLogout, allClients, exercises, onRefresh }) {
+function TrainerView({ onLogout, allClients, onRefresh }) {
   const mobile = useIsMobile()
   const [page, setPage] = useAppHistory("roster")
   const [selectedClient, setSelectedClient] = useState(null)
   const client = selectedClient ? allClients.find(c => c.id === selectedClient) : null
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Hours", "Videos"]} onLogout={onLogout} />
+      <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Hours"]} onLogout={onLogout} />
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "roster" && !selectedClient && <Roster clients={allClients} onSelect={setSelectedClient} />}
         {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Kristin" onRefresh={onRefresh} />}
         {page === "schedule" && <ScheduleView clients={allClients} />}
         {page === "hours" && <TrainerHoursView clients={allClients} />}
-        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
@@ -1289,13 +1236,13 @@ function TrainerView({ onLogout, allClients, exercises, onRefresh }) {
 // OWNER VIEW
 // ═══════════════════════════════════════════
 
-function OwnerOverview({ clients, onNav }) {
+function OwnerOverview({ clients, onNav, onSelectClient }) {
   const mobile = useIsMobile()
   const active = clients.filter(c => c.status === "active")
   const totalSessions = active.reduce((s, c) => s + c.programming.days.length, 0)
   const done = active.reduce((s, c) => s + c.programming.days.filter(d => d.completed).length, 0)
   const assessed = active.filter(c => c.assessments.length > 0).length
-  const revenue = active.reduce((s, c) => s + c.programming.days.length * 99, 0)
+  const revenue = active.filter(c => c.pack).reduce((s, c) => s + c.pack.price, 0)
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "slideUp 0.3s ease" }}>
       <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Active Health Fit Overview</h1></div>
@@ -1303,7 +1250,7 @@ function OwnerOverview({ clients, onNav }) {
         <Card><Label color="#6B7280">Active Clients</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{active.length}</div></Card>
         <Card><Label color="#6B7280">Weekly Sessions</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{done}/{totalSessions}</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 8 }}><div style={{ width: `${totalSessions ? (done / totalSessions) * 100 : 0}%`, height: 4, backgroundColor: T.accent, borderRadius: 2, transition: "width 0.5s ease" }} /></div></Card>
         <Card><Label color="#6B7280">Assessed</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{assessed}/{active.length}</div></Card>
-        <Card><Label color="#6B7280">Weekly Revenue</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.green }}>${revenue}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{totalSessions} x $99/hr</div></Card>
+        <Card><Label color="#6B7280">Pack Revenue</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.green }}>${revenue.toLocaleString()}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{active.filter(c => c.pack).length} active packs</div></Card>
       </Grid>
       <Card>
         <Label>Kristin Hours Tracker</Label>
@@ -1314,20 +1261,54 @@ function OwnerOverview({ clients, onNav }) {
         </Grid>
       </Card>
       <Card>
+        <Label>Session Packs</Label>
+        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>10-session packs · click a client for details</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {active.filter(c => c.pack).map(c => {
+            const p = c.pack, remaining = p.total - p.used, pct = (p.used / p.total) * 100
+            const low = remaining <= 2
+            const perSession = (p.price / p.total).toFixed(0)
+            return (
+              <div key={c.id} onClick={() => onSelectClient(c.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: T.r.md, border: `1px solid ${low ? "#FDE68A" : T.mist}`, background: low ? "#FFFBEB" : "white", cursor: "pointer", transition: "all 0.15s" }} onMouseEnter={e => { e.currentTarget.style.boxShadow = T.shadow.sm; e.currentTarget.style.transform = "translateY(-1px)" }} onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none" }}>
+                <Avatar name={c.name} size={32} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{c.name}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 11, color: low ? T.amber : "#6B7280" }}>{remaining} left</span>
+                  </div>
+                  <div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2 }}>
+                    <div style={{ width: `${pct}%`, height: 4, backgroundColor: low ? T.amber : T.accent, borderRadius: 2, transition: "width 0.5s ease" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF" }}>{p.used}/{p.total} used · ${perSession}/session</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 10, color: p.tier === "Founders Club" ? T.accent : "#9CA3AF" }}>{p.tier} · ${p.price}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {(() => {
+          const packs = active.filter(c => c.pack)
+          const totalRevenue = packs.reduce((s, c) => s + c.pack.price, 0)
+          const totalUsed = packs.reduce((s, c) => s + c.pack.used, 0)
+          const totalSess = packs.reduce((s, c) => s + c.pack.total, 0)
+          return (
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.mist}`, flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280" }}>{totalUsed}/{totalSess} total sessions used across {packs.length} packs</span>
+              <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 600, color: T.green }}>${totalRevenue} collected</span>
+            </div>
+          )
+        })()}
+      </Card>
+      <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><Label>Client Roster</Label><button onClick={() => onNav("clients")} style={{ background: "none", border: "none", fontSize: 12, color: T.accent, fontWeight: 600, cursor: "pointer", fontFamily: T.sans }}>View all →</button></div>
         {active.map(c => (
-          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${T.mist}`, flexWrap: "wrap", gap: 8 }}>
+          <div key={c.id} onClick={() => onSelectClient(c.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${T.mist}`, flexWrap: "wrap", gap: 8, cursor: "pointer", borderRadius: T.r.sm, transition: "background 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = T.warmCloud} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Avatar name={c.name} size={28} /><span style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{c.name}</span>{!mobile && <span style={{ fontSize: 11, color: "#6B7280" }}>{c.plan}</span>}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: T.mono, fontSize: 11, color: c.assessments.length ? T.green : T.amber }}>{c.assessments.length ? "Assessed" : "No assessment"}</span><span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280" }}>{c.programming.days.filter(d => d.completed).length}/{c.programming.days.length} done</span></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: T.mono, fontSize: 11, color: c.assessments.length ? T.green : T.amber }}>{c.assessments.length ? "Assessed" : "No assessment"}</span><span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280" }}>{c.programming.days.filter(d => d.completed).length}/{c.programming.days.length} done</span><span style={{ fontSize: 11, color: "#9CA3AF" }}>→</span></div>
           </div>
         ))}
-      </Card>
-      <Card style={{ background: "linear-gradient(135deg, #F0FDF4, #DCFCE7)", border: "1px solid #BBF7D0" }}>
-        <Label color="#166534">Platform Savings</Label>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-          <div><div style={{ fontSize: 14, color: "#166534" }}>TrainHeroic was $37/month. This dashboard is $0/month.</div><div style={{ fontSize: 12, color: "#166534", marginTop: 4 }}>Supabase free tier + Vercel free tier. Full control over your data.</div></div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "#166534" }}>$444/yr saved</div>
-        </div>
       </Card>
     </div>
   )
@@ -1423,7 +1404,7 @@ function ImportTool({ onDone }) {
   )
 }
 
-function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
+function OwnerView({ onLogout, allClients, onRefresh }) {
   const mobile = useIsMobile()
   const [page, setPage] = useAppHistory("overview")
   const [selectedClient, setSelectedClient] = useState(null)
@@ -1438,9 +1419,9 @@ function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
 
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <NavBar active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null); setShowAddClient(false); setShowImport(false) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Hours", "Schedule", "Videos"]} onLogout={onLogout} />
+      <NavBar active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null); setShowAddClient(false); setShowImport(false) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Hours", "Schedule"]} onLogout={onLogout} />
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
-        {page === "overview" && <OwnerOverview clients={allClients} onNav={setPage} />}
+        {page === "overview" && <OwnerOverview clients={allClients} onNav={setPage} onSelectClient={(id) => { setPage("clients"); setSelectedClient(id) }} />}
         {page === "clients" && !selectedClient && !showAddClient && !showImport && (
           <>
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "24px 0 12px", gap: 8 }}>
@@ -1455,7 +1436,6 @@ function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
         {page === "clients" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Dr. Simunac" onRefresh={onRefresh} />}
         {page === "hours" && <OwnerHoursView clients={allClients} />}
         {page === "schedule" && <ScheduleView clients={allClients} />}
-        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
@@ -1469,17 +1449,15 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(!USE_MOCK)
   const [allClients, setAllClients] = useState(MOCK_CLIENTS)
-  const [exercises, setExercises] = useState(MOCK_EXERCISES)
   const [dataLoading, setDataLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     if (USE_MOCK) return
     setDataLoading(true)
     try {
-      const [clients, exList] = await Promise.all([db.loadAllClients(), db.getExercises()])
+      const clients = await db.loadAllClients()
       setAllClients(clients.length ? clients : MOCK_CLIENTS)
-      setExercises(exList.length ? exList : MOCK_EXERCISES)
-    } catch (err) { console.error("Failed to load data:", err); setAllClients(MOCK_CLIENTS); setExercises(MOCK_EXERCISES) }
+    } catch (err) { console.error("Failed to load data:", err); setAllClients(MOCK_CLIENTS) }
     setDataLoading(false)
   }, [])
 
@@ -1519,7 +1497,7 @@ export default function App() {
 
   function handleLogout() {
     if (!USE_MOCK) supabase.auth.signOut()
-    setUser(null); setAllClients(MOCK_CLIENTS); setExercises(MOCK_EXERCISES)
+    setUser(null); setAllClients(MOCK_CLIENTS)
     window.history.replaceState(null, "", window.location.pathname)
   }
 
@@ -1531,10 +1509,10 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={user}>
-      <DataContext.Provider value={{ allClients, exercises, refresh: loadData }}>
-        {user.role === "owner" && <OwnerView onLogout={handleLogout} allClients={allClients} exercises={exercises} onRefresh={loadData} />}
-        {user.role === "trainer" && <TrainerView onLogout={handleLogout} allClients={allClients} exercises={exercises} onRefresh={loadData} />}
-        {user.role === "client" && clientData && <ClientView client={clientData} onLogout={handleLogout} exercises={exercises} />}
+      <DataContext.Provider value={{ allClients, refresh: loadData }}>
+        {user.role === "owner" && <OwnerView onLogout={handleLogout} allClients={allClients} onRefresh={loadData} />}
+        {user.role === "trainer" && <TrainerView onLogout={handleLogout} allClients={allClients} onRefresh={loadData} />}
+        {user.role === "client" && clientData && <ClientView client={clientData} onLogout={handleLogout} />}
         <div style={{ borderTop: `1px solid ${T.mist}`, padding: "16px 24px", textAlign: "center" }}>
           <span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF", letterSpacing: 0.5 }}>ACTIVE HEALTH FIT · POWERED BY ACTIVE HEALTH SPINE & SPORT</span>
         </div>
