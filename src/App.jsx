@@ -49,13 +49,22 @@ function useAppHistory(defaultPage) {
 const USE_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
 
 // ── Mock Data ──
+// Login by first name (case-insensitive) + shared password "AHF"
 const MOCK_USERS = {
-  "damir@activehealthchicago.com": { id: "u1", email: "damir@activehealthchicago.com", role: "owner", name: "Dr. Simunac" },
-  "kristin@activehealthchicago.com": { id: "u2", email: "kristin@activehealthchicago.com", role: "trainer", name: "Kristin" },
-  "sarah.m@gmail.com": { id: "u3", email: "sarah.m@gmail.com", role: "client", name: "Sarah Mitchell", clientId: "sarah-mitchell" },
-  "mike.chen@email.com": { id: "u4", email: "mike.chen@email.com", role: "client", name: "Mike Chen", clientId: "mike-chen" },
-  "jenny.p@email.com": { id: "u5", email: "jenny.p@email.com", role: "client", name: "Jenny Park", clientId: "jenny-park" },
-  "tom.russo@email.com": { id: "u6", email: "tom.russo@email.com", role: "client", name: "Tom Russo", clientId: "tom-russo" },
+  "damir": { id: "u1", email: "damir@activehealthchicago.com", role: "owner", name: "Dr. Simunac" },
+  "kristin": { id: "u2", email: "kristin@activehealthchicago.com", role: "trainer", name: "Kristin" },
+  "sarah": { id: "u3", email: "sarah.m@gmail.com", role: "client", name: "Sarah Mitchell", clientId: "sarah-mitchell" },
+  "mike": { id: "u4", email: "mike.chen@email.com", role: "client", name: "Mike Chen", clientId: "mike-chen" },
+  "jenny": { id: "u5", email: "jenny.p@email.com", role: "client", name: "Jenny Park", clientId: "jenny-park" },
+  "tom": { id: "u6", email: "tom.russo@email.com", role: "client", name: "Tom Russo", clientId: "tom-russo" },
+}
+const SHARED_PASSWORD = "AHF"
+
+// Map first names to emails for Supabase auth (production)
+const NAME_TO_EMAIL = {
+  "damir": "damir@activehealthchicago.com",
+  "kristin": "kristin@activehealthchicago.com",
+  // Client emails will be looked up from profiles table
 }
 
 const MOCK_CLIENTS = [
