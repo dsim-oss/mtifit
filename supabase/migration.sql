@@ -417,3 +417,31 @@ create policy "Staff upload attachments"
 create policy "Everyone reads attachments"
   on storage.objects for select
   using (bucket_id = 'attachments');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- USER SETUP (run AFTER migration)
+-- ═══════════════════════════════════════════════════════════════
+-- Create users via Supabase Dashboard > Authentication > Users > "Add user"
+-- Use email + password method. Set password to "AHF" for all users.
+--
+-- Staff accounts to create:
+--   1. damir@activehealthchicago.com  (password: AHF)
+--   2. kristin@activehealthchicago.com (password: AHF)
+--
+-- After creating users, update their profiles to set correct roles:
+--
+-- UPDATE profiles SET role = 'owner', full_name = 'Dr. Simunac'
+--   WHERE email = 'damir@activehealthchicago.com';
+--
+-- UPDATE profiles SET role = 'trainer', full_name = 'Kristin'
+--   WHERE email = 'kristin@activehealthchicago.com';
+--
+-- For each client, create them via Dashboard with their email + password "AHF",
+-- then link them:
+--
+-- UPDATE profiles SET role = 'client', full_name = 'Sarah Mitchell'
+--   WHERE email = 'sarah.m@gmail.com';
+--
+-- UPDATE clients SET profile_id = (SELECT id FROM profiles WHERE email = 'sarah.m@gmail.com')
+--   WHERE full_name = 'Sarah Mitchell';

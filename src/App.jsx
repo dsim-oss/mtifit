@@ -399,24 +399,45 @@ function Grid({ cols = 3, mobileCols = 1, gap = 12, children, style = {} }) {
 // ═══════════════════════════════════════════
 
 function LoginScreen({ onMockLogin }) {
-  const [email, setEmail] = useState("")
-  const [sent, setSent] = useState(false)
+  const [name, setName] = useState("")
+  const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [logging, setLogging] = useState(false)
 
   async function handleLogin(e) {
     e.preventDefault()
     setError("")
+    const firstName = name.trim().toLowerCase()
+    if (!firstName) { setError("Enter your first name."); return }
+    if (password !== SHARED_PASSWORD) { setError("Wrong password."); return }
+
     if (USE_MOCK) {
-      const user = MOCK_USERS[email.toLowerCase()]
+      const user = MOCK_USERS[firstName]
       if (user) { onMockLogin(user); return }
-      setError("Email not found. Try: damir@activehealthchicago.com, kristin@activehealthchicago.com, or sarah.m@gmail.com")
+      setError("Name not recognized. Try: Damir, Kristin, Sarah, Mike, Jenny, or Tom")
       return
     }
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email, options: { emailRedirectTo: window.location.origin }
-    })
-    if (authError) { setError(authError.message); return }
-    setSent(true)
+
+    // Production: look up email from name, sign in with password
+    setLogging(true)
+    try {
+      // Try known staff names first
+      let email = NAME_TO_EMAIL[firstName]
+      if (!email) {
+        // For clients, look up by first name in profiles
+        const { data } = await supabase
+          .from("profiles")
+          .select("email")
+          .ilike("full_name", `${firstName}%`)
+          .limit(1)
+          .single()
+        if (data) email = data.email
+      }
+      if (!email) { setError("Name not found. Contact Dr. Simunac for access."); setLogging(false); return }
+
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password: SHARED_PASSWORD })
+      if (authError) { setError(authError.message); setLogging(false); return }
+    } catch (err) { setError("Login failed. Try again."); setLogging(false) }
   }
 
   return (
@@ -439,51 +460,32 @@ function LoginScreen({ onMockLogin }) {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Sign in to your dashboard</h1>
         </div>
 
-        {sent ? (
-          <Card style={{ textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-              <span style={{ fontSize: 22, color: T.green }}>✓</span>
+        <form onSubmit={handleLogin}>
+          <Card style={{ boxShadow: T.shadow.md }}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>FIRST NAME</label>
+              <Input value={name} onChange={setName} placeholder="Damir" type="text" />
             </div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Check your email</div>
-            <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5 }}>
-              We sent a sign-in link to <strong>{email}</strong>. Click the link to access your dashboard.
-            </p>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>PASSWORD</label>
+              <Input value={password} onChange={setPassword} placeholder="AHF" type="password" />
+            </div>
+            {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 12, padding: "8px 12px", backgroundColor: "#FEF2F2", borderRadius: T.r.sm }}>{error}</div>}
+            <button type="submit" disabled={logging} style={{
+              width: "100%", padding: "13px 0",
+              background: logging ? T.mist : `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`,
+              color: T.white, border: "none", borderRadius: T.r.sm,
+              fontSize: 15, fontWeight: 600, cursor: logging ? "wait" : "pointer", fontFamily: T.sans,
+              boxShadow: "0 3px 10px rgba(15,118,110,0.3)",
+              transition: "transform 0.15s, box-shadow 0.15s",
+            }}
+            onMouseDown={e => { if (!logging) e.currentTarget.style.transform = "scale(0.98)" }}
+            onMouseUp={e => { e.currentTarget.style.transform = "none" }}
+            >
+              {logging ? "Signing in..." : "Sign In"}
+            </button>
           </Card>
-        ) : (
-          <form onSubmit={handleLogin}>
-            <Card style={{ boxShadow: T.shadow.md }}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>EMAIL</label>
-                <Input value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
-              </div>
-              {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 12, padding: "8px 12px", backgroundColor: "#FEF2F2", borderRadius: T.r.sm }}>{error}</div>}
-              <button type="submit" style={{
-                width: "100%", padding: "13px 0",
-                background: `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`,
-                color: T.white, border: "none", borderRadius: T.r.sm,
-                fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: T.sans,
-                boxShadow: "0 3px 10px rgba(15,118,110,0.3)",
-                transition: "transform 0.15s, box-shadow 0.15s",
-              }}
-              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.98)" }}
-              onMouseUp={e => { e.currentTarget.style.transform = "none" }}
-              >
-                {USE_MOCK ? "Sign In (Demo)" : "Send Magic Link"}
-              </button>
-            </Card>
-          </form>
-        )}
-
-        {USE_MOCK && (
-          <div style={{ marginTop: 20, padding: 16, backgroundColor: T.warmCloud, borderRadius: T.r.md, boxShadow: T.shadow.sm }}>
-            <div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", letterSpacing: 0.5, marginBottom: 8 }}>DEMO ACCOUNTS</div>
-            <div style={{ fontSize: 12, color: "#4B5563", lineHeight: 2 }}>
-              <strong>Owner:</strong> damir@activehealthchicago.com<br />
-              <strong>Trainer:</strong> kristin@activehealthchicago.com<br />
-              <strong>Client:</strong> sarah.m@gmail.com
-            </div>
-          </div>
-        )}
+        </form>
       </div>
     </div>
   )
@@ -1481,33 +1483,33 @@ export default function App() {
     setDataLoading(false)
   }, [])
 
+  // Helper to resolve user from session
+  async function resolveUser(session) {
+    if (!session?.user) return null
+    try {
+      const profile = await db.getProfile(session.user.id)
+      const userData = { id: session.user.id, email: session.user.email, role: profile.role, name: profile.full_name }
+      if (profile.role === "client") {
+        const clientRecord = await db.getClientByProfileId(session.user.id)
+        if (clientRecord) userData.clientId = clientRecord.id
+      }
+      return userData
+    } catch {
+      return { id: session.user.id, email: session.user.email, role: "client", name: session.user.email }
+    }
+  }
+
   useEffect(() => {
     if (USE_MOCK) return
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        try {
-          const profile = await db.getProfile(session.user.id)
-          const userData = { id: session.user.id, email: session.user.email, role: profile.role, name: profile.full_name }
-          if (profile.role === "client") {
-            const clientRecord = await db.getClientByProfileId(session.user.id)
-            if (clientRecord) userData.clientId = clientRecord.id
-          }
-          setUser(userData)
-        } catch { setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email }) }
-      }
+      const u = await resolveUser(session)
+      if (u) setUser(u)
       setLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        try {
-          const profile = await db.getProfile(session.user.id)
-          const userData = { id: session.user.id, email: session.user.email, role: profile.role, name: profile.full_name }
-          if (profile.role === "client") {
-            const clientRecord = await db.getClientByProfileId(session.user.id)
-            if (clientRecord) userData.clientId = clientRecord.id
-          }
-          setUser(userData)
-        } catch { setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email }) }
+        const u = await resolveUser(session)
+        if (u) setUser(u)
       } else { setUser(null) }
     })
     return () => subscription.unsubscribe()
