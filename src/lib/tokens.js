@@ -3,6 +3,7 @@ export const T = {
   ink: "#1A1D23",
   accent: "#0F766E",
   accentDeep: "#0D5F58",
+  accentLight: "#CCFBF1",
   warmBg: "#FAFAF8",
   warmCloud: "#F5F4F1",
   mist: "#E5E7EB",
@@ -13,7 +14,8 @@ export const T = {
   purple: "#7C3AED",
   mono: "'IBM Plex Mono', monospace",
   sans: "'DM Sans', system-ui, -apple-system, sans-serif",
-  r: { sm: 6, md: 10, lg: 16 },
+  r: { sm: 8, md: 12, lg: 16 },
+  shadow: { sm: "0 1px 3px rgba(0,0,0,0.06)", md: "0 4px 12px rgba(0,0,0,0.08)", lg: "0 8px 24px rgba(0,0,0,0.1)" },
 }
 
 export const flagColor = (f) =>

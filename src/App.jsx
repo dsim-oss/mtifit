@@ -1,11 +1,49 @@
-import { useState, useEffect, useMemo, createContext, useContext } from "react"
+import { useState, useEffect, useMemo, createContext, useContext, useCallback, useRef } from "react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { supabase } from "./lib/supabase"
 import { T, flagColor, flagLabel } from "./lib/tokens"
+import * as db from "./lib/db"
 
-// ── Auth Context ──
+// ── Contexts ──
 const AuthContext = createContext(null)
 function useAuth() { return useContext(AuthContext) }
+const DataContext = createContext(null)
+function useData() { return useContext(DataContext) }
+
+// ── Responsive hook ──
+function useIsMobile() {
+  const [mobile, setMobile] = useState(window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handler)
+    return () => window.removeEventListener("resize", handler)
+  }, [])
+  return mobile
+}
+
+// ── Browser history for SPA navigation ──
+function useAppHistory(defaultPage) {
+  const [page, setPageState] = useState(() => {
+    const hash = window.location.hash.replace("#", "")
+    return hash || defaultPage
+  })
+
+  function setPage(p) {
+    window.history.pushState({ page: p }, "", `#${p}`)
+    setPageState(p)
+  }
+
+  useEffect(() => {
+    function onPop(e) {
+      const hash = window.location.hash.replace("#", "")
+      setPageState(hash || defaultPage)
+    }
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [defaultPage])
+
+  return [page, setPage]
+}
 
 // ── Use mock data when Supabase isn't configured ──
 const USE_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
@@ -20,7 +58,7 @@ const MOCK_USERS = {
   "tom.russo@email.com": { id: "u6", email: "tom.russo@email.com", role: "client", name: "Tom Russo", clientId: "tom-russo" },
 }
 
-const ALL_CLIENTS = [
+const MOCK_CLIENTS = [
   {
     id: "sarah-mitchell", name: "Sarah Mitchell", email: "sarah.m@gmail.com",
     startDate: "2025-11-04", plan: "2x/week, Tue/Thu", status: "active",
@@ -231,7 +269,7 @@ const ALL_CLIENTS = [
   },
 ]
 
-const EXERCISE_LIBRARY = [
+const MOCK_EXERCISES = [
   { id: "rdl", name: "Barbell RDL", category: "Hinge" },
   { id: "bss", name: "Bulgarian Split Squat", category: "Squat" },
   { id: "hip-thrust", name: "Hip Thrust", category: "Hinge" },
@@ -258,39 +296,97 @@ const EXERCISE_LIBRARY = [
   { id: "spine-cars", name: "Spine CARs", category: "Mobility" },
   { id: "90-90-pails", name: "90/90 PAILs/RAILs", category: "Mobility" },
 ]
+
 const VIDEO_CATS = ["All", "Mobility", "Activation", "Core", "Push", "Pull", "Hinge", "Squat", "Power", "Carry", "Isolation"]
 
-// ── Shared UI Components ──
-function Card({ children, style = {}, onClick }) {
-  return <div onClick={onClick} style={{ backgroundColor: T.white, border: `1px solid ${T.mist}`, borderRadius: T.r.md, padding: 20, ...style }}>{children}</div>
+// ══════════════════════════════════════════
+// SHARED UI — warmer, with shadows and life
+// ══════════════════════════════════════════
+
+function Card({ children, style = {}, onClick, accent }) {
+  return (
+    <div onClick={onClick} style={{
+      backgroundColor: T.white,
+      border: accent ? `1px solid ${T.accent}30` : `1px solid ${T.mist}`,
+      borderRadius: T.r.md,
+      padding: 20,
+      boxShadow: T.shadow.sm,
+      transition: "box-shadow 0.2s, transform 0.15s",
+      animation: "fadeIn 0.3s ease",
+      ...(onClick ? { cursor: "pointer" } : {}),
+      ...style,
+    }}
+    onMouseEnter={onClick ? (e) => { e.currentTarget.style.boxShadow = T.shadow.md; e.currentTarget.style.transform = "translateY(-1px)" } : undefined}
+    onMouseLeave={onClick ? (e) => { e.currentTarget.style.boxShadow = T.shadow.sm; e.currentTarget.style.transform = "none" } : undefined}
+    >{children}</div>
+  )
 }
+
 function Label({ children, color = T.accent }) {
   return <div style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color, letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>{children}</div>
 }
+
 function Btn({ children, active, onClick, color = T.accent, small }) {
-  return <button onClick={onClick} style={{
-    background: active ? color : "transparent", color: active ? T.white : "#6B7280",
-    border: `1px solid ${active ? color : T.mist}`, padding: small ? "4px 10px" : "8px 16px",
-    borderRadius: T.r.sm, fontSize: small ? 11 : 13, fontWeight: 500, cursor: "pointer", fontFamily: T.sans,
-  }}>{children}</button>
+  return (
+    <button onClick={onClick} style={{
+      background: active ? `linear-gradient(135deg, ${color}, ${color}dd)` : "transparent",
+      color: active ? T.white : "#6B7280",
+      border: `1px solid ${active ? color : T.mist}`,
+      padding: small ? "5px 12px" : "9px 18px",
+      borderRadius: T.r.sm, fontSize: small ? 11 : 13, fontWeight: 600, cursor: "pointer", fontFamily: T.sans,
+      boxShadow: active ? "0 2px 6px rgba(0,0,0,0.12)" : "none",
+      transition: "all 0.15s ease",
+    }}>{children}</button>
+  )
 }
+
 function Input({ value, onChange, placeholder, style = {}, type = "text" }) {
   return <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{
-    padding: "10px 14px", border: `1px solid ${T.mist}`, borderRadius: T.r.sm, fontSize: 13, fontFamily: T.sans, outline: "none", width: "100%", boxSizing: "border-box", ...style
-  }} />
+    padding: "11px 14px", border: `1px solid ${T.mist}`, borderRadius: T.r.sm, fontSize: 14, fontFamily: T.sans,
+    outline: "none", width: "100%", boxSizing: "border-box", transition: "border-color 0.2s",
+    ...style
+  }} onFocus={e => e.target.style.borderColor = T.accent} onBlur={e => e.target.style.borderColor = T.mist} />
 }
+
 function Textarea({ value, onChange, placeholder, rows = 3 }) {
   return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} style={{
-    padding: "10px 14px", border: `1px solid ${T.mist}`, borderRadius: T.r.sm, fontSize: 13, fontFamily: T.sans, outline: "none", width: "100%", boxSizing: "border-box", resize: "vertical",
-  }} />
+    padding: "11px 14px", border: `1px solid ${T.mist}`, borderRadius: T.r.sm, fontSize: 14, fontFamily: T.sans,
+    outline: "none", width: "100%", boxSizing: "border-box", resize: "vertical", transition: "border-color 0.2s",
+  }} onFocus={e => e.target.style.borderColor = T.accent} onBlur={e => e.target.style.borderColor = T.mist} />
 }
+
 function Avatar({ name, size = 32 }) {
   const initials = name.split(" ").map(n => n[0]).join("")
-  return <div style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.38, fontWeight: 700, color: T.white, flexShrink: 0 }}>{initials}</div>
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: size / 2,
+      background: `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: size * 0.38, fontWeight: 700, color: T.white, flexShrink: 0,
+      boxShadow: "0 2px 6px rgba(15,118,110,0.25)",
+    }}>{initials}</div>
+  )
+}
+
+function Spinner() {
+  return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 60 }}><div style={{ width: 32, height: 32, border: `3px solid ${T.mist}`, borderTopColor: T.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} /></div>
+}
+
+// Responsive grid helper
+function Grid({ cols = 3, mobileCols = 1, gap = 12, children, style = {} }) {
+  const mobile = useIsMobile()
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: `repeat(${mobile ? mobileCols : cols}, 1fr)`,
+      gap,
+      ...style,
+    }}>{children}</div>
+  )
 }
 
 // ═══════════════════════════════════════════
-// LOGIN SCREEN
+// LOGIN SCREEN — mobile-first
 // ═══════════════════════════════════════════
 
 function LoginScreen({ onMockLogin }) {
@@ -301,33 +397,44 @@ function LoginScreen({ onMockLogin }) {
   async function handleLogin(e) {
     e.preventDefault()
     setError("")
-
     if (USE_MOCK) {
       const user = MOCK_USERS[email.toLowerCase()]
       if (user) { onMockLogin(user); return }
       setError("Email not found. Try: damir@activehealthchicago.com, kristin@activehealthchicago.com, or sarah.m@gmail.com")
       return
     }
-
     const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin }
+      email, options: { emailRedirectTo: window.location.origin }
     })
     if (authError) { setError(authError.message); return }
     setSent(true)
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: T.warmBg }}>
-      <div style={{ width: 380, padding: 40 }}>
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ fontFamily: T.mono, fontSize: 12, color: T.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>ACTIVE HEALTH FIT</div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: T.ink, margin: 0 }}>Sign in to your dashboard</h1>
+    <div style={{
+      minHeight: "100vh", minHeight: "100dvh",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      backgroundColor: T.warmBg, padding: 20,
+    }}>
+      <div style={{ width: "100%", maxWidth: 400, animation: "slideUp 0.4s ease" }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 14,
+            background: `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 16px", boxShadow: "0 4px 14px rgba(15,118,110,0.25)",
+          }}>
+            <span style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 700, color: T.white }}>F</span>
+          </div>
+          <div style={{ fontFamily: T.mono, fontSize: 11, color: T.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>ACTIVE HEALTH FIT</div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Sign in to your dashboard</h1>
         </div>
 
         {sent ? (
           <Card style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>✓</div>
+            <div style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <span style={{ fontSize: 22, color: T.green }}>✓</span>
+            </div>
             <div style={{ fontSize: 16, fontWeight: 600, color: T.ink, marginBottom: 8 }}>Check your email</div>
             <p style={{ fontSize: 13, color: "#6B7280", lineHeight: 1.5 }}>
               We sent a sign-in link to <strong>{email}</strong>. Click the link to access your dashboard.
@@ -335,16 +442,23 @@ function LoginScreen({ onMockLogin }) {
           </Card>
         ) : (
           <form onSubmit={handleLogin}>
-            <Card>
+            <Card style={{ boxShadow: T.shadow.md }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>EMAIL</label>
                 <Input value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
               </div>
-              {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 12 }}>{error}</div>}
+              {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 12, padding: "8px 12px", backgroundColor: "#FEF2F2", borderRadius: T.r.sm }}>{error}</div>}
               <button type="submit" style={{
-                width: "100%", padding: "12px 0", backgroundColor: T.accent, color: T.white,
-                border: "none", borderRadius: T.r.sm, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: T.sans,
-              }}>
+                width: "100%", padding: "13px 0",
+                background: `linear-gradient(135deg, ${T.accent}, ${T.accentDeep})`,
+                color: T.white, border: "none", borderRadius: T.r.sm,
+                fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: T.sans,
+                boxShadow: "0 3px 10px rgba(15,118,110,0.3)",
+                transition: "transform 0.15s, box-shadow 0.15s",
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = "scale(0.98)" }}
+              onMouseUp={e => { e.currentTarget.style.transform = "none" }}
+              >
                 {USE_MOCK ? "Sign In (Demo)" : "Send Magic Link"}
               </button>
             </Card>
@@ -352,9 +466,9 @@ function LoginScreen({ onMockLogin }) {
         )}
 
         {USE_MOCK && (
-          <div style={{ marginTop: 20, padding: 16, backgroundColor: T.warmCloud, borderRadius: T.r.sm }}>
+          <div style={{ marginTop: 20, padding: 16, backgroundColor: T.warmCloud, borderRadius: T.r.md, boxShadow: T.shadow.sm }}>
             <div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", letterSpacing: 0.5, marginBottom: 8 }}>DEMO ACCOUNTS</div>
-            <div style={{ fontSize: 12, color: "#4B5563", lineHeight: 1.8 }}>
+            <div style={{ fontSize: 12, color: "#4B5563", lineHeight: 2 }}>
               <strong>Owner:</strong> damir@activehealthchicago.com<br />
               <strong>Trainer:</strong> kristin@activehealthchicago.com<br />
               <strong>Client:</strong> sarah.m@gmail.com
@@ -367,66 +481,84 @@ function LoginScreen({ onMockLogin }) {
 }
 
 // ═══════════════════════════════════════════
-// CLIENT VIEW
+// NAV — responsive, scrollable on mobile
 // ═══════════════════════════════════════════
 
-function ClientNav({ active, onNav, client, onLogout }) {
-  const tabs = ["Home", "Programming", "Assessments", "Progress", "Videos"]
+function NavBar({ active, onNav, name, label, labelColor, tabs, onLogout }) {
+  const mobile = useIsMobile()
   return (
-    <div style={{ position: "sticky", top: 0, zIndex: 100, backgroundColor: T.ink, padding: "0 24px" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 56 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.accent, fontWeight: 700, letterSpacing: 1.5 }}>ACTIVE HEALTH FIT</span>
-          <div style={{ display: "flex", gap: 2 }}>
+    <div style={{
+      position: "sticky", top: 0, zIndex: 100,
+      background: `linear-gradient(135deg, ${T.ink}, #252830)`,
+      padding: mobile ? "0 12px" : "0 24px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+    }}>
+      <div style={{
+        maxWidth: 1080, margin: "0 auto",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        height: mobile ? 52 : 56,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: mobile ? 10 : 20, minWidth: 0, flex: 1 }}>
+          <span style={{
+            fontFamily: T.mono, fontSize: mobile ? 9 : 11, color: labelColor || T.accent,
+            fontWeight: 700, letterSpacing: 1.5, whiteSpace: "nowrap", flexShrink: 0,
+          }}>{label || "ACTIVE HEALTH FIT"}</span>
+          <div style={{ display: "flex", gap: 2, overflowX: "auto", WebkitOverflowScrolling: "touch", msOverflowStyle: "none", scrollbarWidth: "none" }}>
             {tabs.map(t => (
               <button key={t} onClick={() => onNav(t.toLowerCase())} style={{
-                background: active === t.toLowerCase() ? T.accentDeep : "transparent",
+                background: active === t.toLowerCase() ? `linear-gradient(135deg, ${T.accentDeep}, ${T.accent})` : "transparent",
                 color: active === t.toLowerCase() ? T.white : "#9CA3AF",
-                border: "none", padding: "6px 14px", borderRadius: T.r.sm, fontSize: 13,
-                fontWeight: active === t.toLowerCase() ? 600 : 400, cursor: "pointer", fontFamily: T.sans,
+                border: "none", padding: mobile ? "5px 10px" : "6px 14px", borderRadius: T.r.sm,
+                fontSize: mobile ? 11 : 13, fontWeight: active === t.toLowerCase() ? 600 : 400,
+                cursor: "pointer", fontFamily: T.sans, whiteSpace: "nowrap",
               }}>{t}</button>
             ))}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar name={client.name} size={30} />
-          <span style={{ fontSize: 13, color: "#9CA3AF" }}>{client.name.split(" ")[0]}</span>
-          <button onClick={onLogout} style={{ background: "none", border: "none", fontSize: 11, color: "#6B7280", cursor: "pointer", fontFamily: T.sans, marginLeft: 8 }}>Sign out</button>
+        <div style={{ display: "flex", alignItems: "center", gap: mobile ? 6 : 10, flexShrink: 0 }}>
+          <Avatar name={name} size={mobile ? 26 : 30} />
+          {!mobile && <span style={{ fontSize: 13, color: "#9CA3AF" }}>{name.split(" ")[0]}</span>}
+          <button onClick={onLogout} style={{ background: "none", border: "none", fontSize: 11, color: "#6B7280", cursor: "pointer", fontFamily: T.sans, marginLeft: mobile ? 4 : 8 }}>Sign out</button>
         </div>
       </div>
     </div>
   )
 }
 
+// ═══════════════════════════════════════════
+// CLIENT VIEW
+// ═══════════════════════════════════════════
+
 function ClientHome({ client, onNav }) {
+  const mobile = useIsMobile()
   const prog = client.programming
   const weeksSinceStart = Math.round((new Date() - new Date(client.startDate)) / (7 * 24 * 60 * 60 * 1000))
   const sessionsThisWeek = prog.days.filter(d => d.completed).length
   const nextDay = prog.days.find(d => !d.completed)
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "slideUp 0.3s ease" }}>
+      <div style={{ padding: "24px 0 4px" }}>
         <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 4 }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: T.ink, margin: 0 }}>Hey {client.name.split(" ")[0]}.</h1>
+        <h1 style={{ fontSize: mobile ? 22 : 26, fontWeight: 700, color: T.ink, margin: 0 }}>Hey {client.name.split(" ")[0]}.</h1>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      <Grid cols={3} mobileCols={1} gap={12}>
         <Card><Label color="#6B7280">Training Week</Label><div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>{parseInt(prog.weekLabel.match(/\d+/)?.[0] || "1")}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{weeksSinceStart} weeks total</div></Card>
         <Card><Label color="#6B7280">This Week</Label><div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>{sessionsThisWeek} / {prog.days.length}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>sessions done</div></Card>
-        <Card><Label color="#6B7280">Next Session</Label><div style={{ fontSize: 14, fontWeight: 600, color: T.accent }}>{client.nextSession.split(",")[0]}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{client.nextSession.split(",").slice(1).join(",").trim()}</div></Card>
-      </div>
+        <Card><Label color="#6B7280">Next Session</Label><div style={{ fontSize: 14, fontWeight: 600, color: T.accent }}>{client.nextSession ? client.nextSession.split(",")[0] : "TBD"}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{client.nextSession ? client.nextSession.split(",").slice(1).join(",").trim() : ""}</div></Card>
+      </Grid>
       {nextDay && (
-        <Card style={{ cursor: "pointer", border: `1px solid ${T.accent}22` }} onClick={() => onNav("programming")}>
+        <Card accent onClick={() => onNav("programming")}>
           <Label>Up Next</Label>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 600, color: T.ink }}>{nextDay.day}, {nextDay.date}</div>
               <div style={{ fontSize: 13, color: "#6B7280" }}>{nextDay.focus}</div>
             </div>
             <span style={{ fontSize: 12, color: T.accent, fontWeight: 600 }}>View full workout →</span>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {(nextDay.blocks.find(b => b.label === "Main Lifts") || nextDay.blocks[0])?.exercises.map((ex, i) => (
-              <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.warmCloud, padding: "4px 10px", borderRadius: 4 }}>{ex.name}</span>
+              <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.accentLight, padding: "4px 10px", borderRadius: 20 }}>{ex.name}</span>
             ))}
           </div>
         </Card>
@@ -434,34 +566,37 @@ function ClientHome({ client, onNav }) {
       <Card><Label>Your Goals</Label>{client.goals.map((g, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: T.accent, flexShrink: 0 }} /><span style={{ fontSize: 14, color: T.ink }}>{g}</span></div>
       ))}</Card>
-      <Card><Label>Recent Notes</Label>{client.notes.map((n, i) => (
-        <div key={i} style={{ borderBottom: i < client.notes.length - 1 ? `1px solid ${T.mist}` : "none", paddingBottom: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>{n.from}</span><span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF" }}>{n.date}</span></div>
-          <p style={{ fontSize: 13, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>{n.text}</p>
-        </div>
-      ))}</Card>
+      {client.notes.length > 0 && (
+        <Card><Label>Recent Notes</Label>{client.notes.map((n, i) => (
+          <div key={i} style={{ borderBottom: i < client.notes.length - 1 ? `1px solid ${T.mist}` : "none", paddingBottom: 12, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}><span style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>{n.from}</span><span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF" }}>{n.date}</span></div>
+            <p style={{ fontSize: 13, color: "#4B5563", margin: 0, lineHeight: 1.5 }}>{n.text}</p>
+          </div>
+        ))}</Card>
+      )}
     </div>
   )
 }
 
 function ProgramView({ client, editable = false }) {
+  const mobile = useIsMobile()
   const [expandedDay, setExpandedDay] = useState(0)
   const prog = client.programming
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>{prog.weekLabel}</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{prog.phase}</div></div>
-          {editable && <div style={{ display: "flex", gap: 8 }}><Btn active onClick={() => {}} color={T.accent}>+ Add Training Day</Btn><Btn onClick={() => {}}>Upload PDF</Btn></div>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div><h1 style={{ fontSize: mobile ? 18 : 22, fontWeight: 700, color: T.ink, margin: 0 }}>{prog.weekLabel}</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{prog.phase}</div></div>
+          {editable && <div style={{ display: "flex", gap: 8 }}><Btn active onClick={() => {}} color={T.accent}>+ Add Day</Btn><Btn onClick={() => {}}>Upload PDF</Btn></div>}
         </div>
       </div>
       {prog.days.map((day, di) => (
-        <Card key={di} style={{ border: expandedDay === di ? `1px solid ${T.accent}` : `1px solid ${T.mist}`, cursor: "pointer" }} onClick={() => setExpandedDay(expandedDay === di ? -1 : di)}>
+        <Card key={di} style={{ border: expandedDay === di ? `1px solid ${T.accent}60` : undefined }} onClick={() => setExpandedDay(expandedDay === di ? -1 : di)}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 16, fontWeight: 600, color: T.ink }}>{day.day}</span><span style={{ fontSize: 12, color: "#6B7280" }}>{day.date}</span>
-                {day.completed && <span style={{ fontSize: 9, fontWeight: 700, color: T.white, backgroundColor: T.green, padding: "2px 8px", borderRadius: 3 }}>DONE</span>}
+                {day.completed && <span style={{ fontSize: 9, fontWeight: 700, color: T.white, background: `linear-gradient(135deg, ${T.green}, #16A34A)`, padding: "2px 8px", borderRadius: 10 }}>DONE</span>}
               </div>
               <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{day.focus}</div>
             </div>
@@ -476,21 +611,32 @@ function ProgramView({ client, editable = false }) {
                 <div key={bi} style={{ marginBottom: bi < day.blocks.length - 1 ? 20 : 0 }}>
                   <div style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, letterSpacing: 1, color: block.label === "Main Lifts" ? T.accent : block.label === "Warm-Up" ? T.amber : "#6B7280", marginBottom: 10 }}>{block.label.toUpperCase()}</div>
                   {block.exercises.map((ex, ei) => (
-                    <div key={ei} style={{ display: "grid", gridTemplateColumns: editable ? "1fr 70px 80px 40px" : "1fr 70px 80px", gap: 8, alignItems: "center", padding: "10px 12px", backgroundColor: ei % 2 === 0 ? T.warmBg : T.white, borderRadius: 4 }}>
-                      <div><div style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{ex.name}</div>{ex.note && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{ex.note}</div>}</div>
-                      <div style={{ fontFamily: T.mono, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{ex.sets} x {ex.reps}</div>
-                      <div style={{ fontFamily: T.mono, fontSize: 12, color: T.ink, fontWeight: 500, textAlign: "center" }}>{ex.load}</div>
+                    <div key={ei} style={{
+                      display: "grid",
+                      gridTemplateColumns: mobile
+                        ? (editable ? "1fr 30px" : "1fr")
+                        : (editable ? "1fr 70px 80px 30px" : "1fr 70px 80px"),
+                      gap: 8, alignItems: "center", padding: "10px 12px",
+                      backgroundColor: ei % 2 === 0 ? T.warmBg : T.white, borderRadius: 6,
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{ex.name}</div>
+                        {mobile && <div style={{ fontSize: 11, color: T.accent, fontFamily: T.mono, marginTop: 2 }}>{ex.sets} x {ex.reps} · {ex.load}</div>}
+                        {ex.note && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{ex.note}</div>}
+                      </div>
+                      {!mobile && <div style={{ fontFamily: T.mono, fontSize: 12, color: "#6B7280", textAlign: "center" }}>{ex.sets} x {ex.reps}</div>}
+                      {!mobile && <div style={{ fontFamily: T.mono, fontSize: 12, color: T.ink, fontWeight: 500, textAlign: "center" }}>{ex.load}</div>}
                       {editable && <span style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center", cursor: "pointer" }}>✏</span>}
                     </div>
                   ))}
-                  {editable && <button style={{ marginTop: 6, background: "none", border: `1px dashed ${T.mist}`, borderRadius: 4, padding: "6px 12px", fontSize: 11, color: "#9CA3AF", cursor: "pointer", width: "100%", fontFamily: T.sans }}>+ Add exercise</button>}
+                  {editable && <button style={{ marginTop: 6, background: "none", border: `1px dashed ${T.mist}`, borderRadius: 6, padding: "6px 12px", fontSize: 11, color: "#9CA3AF", cursor: "pointer", width: "100%", fontFamily: T.sans }}>+ Add exercise</button>}
                 </div>
               ))}
             </div>
           )}
         </Card>
       ))}
-      {prog.attachments.length > 0 && (
+      {prog.attachments && prog.attachments.length > 0 && (
         <Card><Label>Attachments</Label>
           {prog.attachments.map((a, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: T.warmBg, borderRadius: T.r.sm, marginBottom: 4 }}>
@@ -501,7 +647,7 @@ function ProgramView({ client, editable = false }) {
               <span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF" }}>{a.size}</span>
             </div>
           ))}
-          {editable && <button style={{ marginTop: 8, background: "none", border: `1px dashed ${T.mist}`, borderRadius: 4, padding: "8px 14px", fontSize: 12, color: "#9CA3AF", cursor: "pointer", fontFamily: T.sans }}>+ Upload file</button>}
+          {editable && <button style={{ marginTop: 8, background: "none", border: `1px dashed ${T.mist}`, borderRadius: 6, padding: "8px 14px", fontSize: 12, color: "#9CA3AF", cursor: "pointer", fontFamily: T.sans }}>+ Upload file</button>}
         </Card>
       )}
     </div>
@@ -509,31 +655,52 @@ function ProgramView({ client, editable = false }) {
 }
 
 function AssessmentView({ client }) {
+  const mobile = useIsMobile()
   const [sel, setSel] = useState(0)
   if (!client.assessments.length) return <div style={{ padding: "60px 0", textAlign: "center" }}><div style={{ fontSize: 16, color: "#6B7280" }}>No assessments yet.</div><div style={{ fontSize: 13, color: "#9CA3AF", marginTop: 4 }}>Your first assessment with Dr. Simunac will appear here.</div></div>
   const a = client.assessments[sel]
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Assessments</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Measurement history with Dr. Simunac</div></div>
-      <div style={{ display: "flex", gap: 8 }}>{client.assessments.map((ass, i) => <Btn key={i} active={sel === i} onClick={() => setSel(i)} color={T.ink}>{ass.date}</Btn>)}</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: mobile ? 18 : 22, fontWeight: 700, color: T.ink, margin: 0 }}>Assessments</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Measurement history with Dr. Simunac</div></div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto" }}>{client.assessments.map((ass, i) => <Btn key={i} active={sel === i} onClick={() => setSel(i)} color={T.ink}>{ass.date}</Btn>)}</div>
       <Card>
         <div style={{ fontSize: 16, fontWeight: 600, color: T.ink }}>{a.type}</div>
         <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2, marginBottom: 12 }}>Assessed by {a.assessor}, {a.date}</div>
         <p style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.6, margin: "0 0 20px" }}>{a.summary}</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 110px", gap: 8, padding: "8px 12px", backgroundColor: T.warmCloud, borderRadius: "4px 4px 0 0" }}>
-            {["MEASURE", "PREV", "NOW", "CHANGE", "STATUS"].map((h, i) => <span key={h} style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, textAlign: i === 0 ? "left" : i === 4 ? "right" : "center" }}>{h}</span>)}
+        {mobile ? (
+          // Mobile: card layout for metrics
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {a.metrics.map((m, i) => (
+              <div key={i} style={{ padding: 12, backgroundColor: i % 2 === 0 ? T.warmBg : T.white, borderRadius: T.r.sm }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{m.name}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: flagColor(m.flag) === "#D1D5DB" ? "#6B7280" : flagColor(m.flag), backgroundColor: `${flagColor(m.flag)}20`, padding: "2px 8px", borderRadius: 10 }}>{flagLabel(m.flag)}</span>
+                </div>
+                <div style={{ display: "flex", gap: 16 }}>
+                  <div><div style={{ fontFamily: T.mono, fontSize: 9, color: "#9CA3AF" }}>PREV</div><div style={{ fontFamily: T.mono, fontSize: 13, color: "#6B7280" }}>{m.prev !== null ? `${m.prev} ${m.unit}` : "\u2014"}</div></div>
+                  <div><div style={{ fontFamily: T.mono, fontSize: 9, color: "#9CA3AF" }}>NOW</div><div style={{ fontFamily: T.mono, fontSize: 13, color: T.ink, fontWeight: 600 }}>{m.now} {m.unit}</div></div>
+                  <div><div style={{ fontFamily: T.mono, fontSize: 9, color: "#9CA3AF" }}>CHANGE</div><div style={{ fontFamily: T.mono, fontSize: 13, color: m.flag === "improved" ? T.green : m.flag === "declined" ? T.red : "#6B7280", fontWeight: 600 }}>{m.change}</div></div>
+                </div>
+              </div>
+            ))}
           </div>
-          {a.metrics.map((m, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 110px", gap: 8, padding: "10px 12px", alignItems: "center", backgroundColor: i % 2 === 0 ? T.white : T.warmBg }}>
-              <span style={{ fontSize: 13, color: T.ink, fontWeight: 500 }}>{m.name}</span>
-              <span style={{ fontFamily: T.mono, fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>{m.prev !== null ? `${m.prev} ${m.unit}` : "\u2014"}</span>
-              <span style={{ fontFamily: T.mono, fontSize: 12, color: T.ink, fontWeight: 600, textAlign: "center" }}>{m.now} {m.unit}</span>
-              <span style={{ fontFamily: T.mono, fontSize: 12, color: m.flag === "improved" ? T.green : m.flag === "declined" ? T.red : "#6B7280", fontWeight: 600, textAlign: "center" }}>{m.change}</span>
-              <div style={{ textAlign: "right" }}><span style={{ fontSize: 9, fontWeight: 700, color: flagColor(m.flag) === "#D1D5DB" ? "#6B7280" : flagColor(m.flag), backgroundColor: `${flagColor(m.flag)}20`, padding: "2px 8px", borderRadius: 3 }}>{flagLabel(m.flag)}</span></div>
+        ) : (
+          // Desktop: table layout
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 110px", gap: 8, padding: "8px 12px", backgroundColor: T.warmCloud, borderRadius: "6px 6px 0 0" }}>
+              {["MEASURE", "PREV", "NOW", "CHANGE", "STATUS"].map((h, i) => <span key={h} style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, textAlign: i === 0 ? "left" : i === 4 ? "right" : "center" }}>{h}</span>)}
             </div>
-          ))}
-        </div>
+            {a.metrics.map((m, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 70px 80px 110px", gap: 8, padding: "10px 12px", alignItems: "center", backgroundColor: i % 2 === 0 ? T.white : T.warmBg }}>
+                <span style={{ fontSize: 13, color: T.ink, fontWeight: 500 }}>{m.name}</span>
+                <span style={{ fontFamily: T.mono, fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>{m.prev !== null ? `${m.prev} ${m.unit}` : "\u2014"}</span>
+                <span style={{ fontFamily: T.mono, fontSize: 12, color: T.ink, fontWeight: 600, textAlign: "center" }}>{m.now} {m.unit}</span>
+                <span style={{ fontFamily: T.mono, fontSize: 12, color: m.flag === "improved" ? T.green : m.flag === "declined" ? T.red : "#6B7280", fontWeight: 600, textAlign: "center" }}>{m.change}</span>
+                <div style={{ textAlign: "right" }}><span style={{ fontSize: 9, fontWeight: 700, color: flagColor(m.flag) === "#D1D5DB" ? "#6B7280" : flagColor(m.flag), backgroundColor: `${flagColor(m.flag)}20`, padding: "2px 8px", borderRadius: 10 }}>{flagLabel(m.flag)}</span></div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
       <Card style={{ backgroundColor: T.warmCloud, border: "none" }}>
         <Label color="#6B7280">How To Read This</Label>
@@ -553,10 +720,10 @@ function ProgressView({ client }) {
   const act = opts.find(m => m.id === metric)
   if (!client.progress.length) return <div style={{ padding: "60px 0", textAlign: "center" }}><div style={{ fontSize: 16, color: "#6B7280" }}>Progress data will appear after your first assessment.</div></div>
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Progress</h1></div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Progress</h1></div>
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
           <Label>Strength Trends</Label>
           <div style={{ display: "flex", gap: 4 }}>{opts.map(m => <Btn key={m.id} small active={metric === m.id} onClick={() => setMetric(m.id)}>{m.label}</Btn>)}</div>
         </div>
@@ -565,7 +732,7 @@ function ProgressView({ client }) {
             <LineChart data={client.progress}>
               <CartesianGrid strokeDasharray="3 3" stroke={T.mist} /><XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6B7280" }} />
               <YAxis tick={{ fontSize: 11, fill: "#6B7280" }} domain={["dataMin - 5", "dataMax + 5"]} width={55} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v, n) => [`${v} ${act.unit}`, n === act.lKey ? "Left" : "Right"]} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, boxShadow: T.shadow.md }} formatter={(v, n) => [`${v} ${act.unit}`, n === act.lKey ? "Left" : "Right"]} />
               <Line type="monotone" dataKey={act.lKey} stroke={T.accent} strokeWidth={2} dot={{ fill: T.accent, r: 4 }} />
               <Line type="monotone" dataKey={act.rKey} stroke={T.ink} strokeWidth={2} dot={{ fill: T.ink, r: 4 }} />
             </LineChart>
@@ -579,28 +746,30 @@ function ProgressView({ client }) {
       {client.trainingLog.length > 0 && (
         <Card><Label>Weekly Training Volume</Label><div style={{ width: "100%", height: 180 }}><ResponsiveContainer>
           <BarChart data={client.trainingLog}><CartesianGrid strokeDasharray="3 3" stroke={T.mist} /><XAxis dataKey="week" tick={{ fontSize: 11, fill: "#6B7280" }} /><YAxis tick={{ fontSize: 11, fill: "#6B7280" }} width={50} />
-          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 6 }} formatter={(v) => [`${v.toLocaleString()} lbs`, "Volume"]} /><Bar dataKey="volume" fill={T.accent} radius={[4, 4, 0, 0]} /></BarChart>
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} formatter={(v) => [`${v.toLocaleString()} lbs`, "Volume"]} /><Bar dataKey="volume" fill={T.accent} radius={[4, 4, 0, 0]} /></BarChart>
         </ResponsiveContainer></div></Card>
       )}
     </div>
   )
 }
 
-function VideosView() {
+function VideosView({ exercises }) {
+  const mobile = useIsMobile()
+  const lib = exercises || MOCK_EXERCISES
   const [search, setSearch] = useState("")
   const [filter, setFilter] = useState("All")
-  const filtered = useMemo(() => EXERCISE_LIBRARY.filter(v => (filter === "All" || v.category === filter) && (!search || v.name.toLowerCase().includes(search.toLowerCase()))), [filter, search])
+  const filtered = useMemo(() => lib.filter(v => (filter === "All" || v.category === filter) && (!search || v.name.toLowerCase().includes(search.toLowerCase()))), [filter, search, lib])
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Exercise Library</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{EXERCISE_LIBRARY.length} exercises</div></div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Exercise Library</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{lib.length} exercises</div></div>
       <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <Input value={search} onChange={setSearch} placeholder="Search exercises..." style={{ flex: 1, minWidth: 200 }} />
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{VIDEO_CATS.map(c => <Btn key={c} small active={filter === c} onClick={() => setFilter(c)}>{c}</Btn>)}</div>
+        <Input value={search} onChange={setSearch} placeholder="Search exercises..." style={{ flex: 1, minWidth: 180 }} />
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", overflowX: "auto" }}>{VIDEO_CATS.map(c => <Btn key={c} small active={filter === c} onClick={() => setFilter(c)}>{c}</Btn>)}</div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
         {filtered.map(v => (
-          <Card key={v.id} style={{ cursor: "pointer", padding: 16 }}>
-            <div style={{ width: "100%", height: 90, backgroundColor: T.warmCloud, borderRadius: T.r.sm, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}><span style={{ fontSize: 20, color: T.accent }}>▶</span></div>
+          <Card key={v.id} style={{ padding: 14 }} onClick={() => {}}>
+            <div style={{ width: "100%", height: 80, background: `linear-gradient(135deg, ${T.warmCloud}, ${T.accentLight})`, borderRadius: T.r.sm, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}><span style={{ fontSize: 20, color: T.accent }}>▶</span></div>
             <div style={{ fontSize: 13, fontWeight: 600, color: T.ink, marginBottom: 4 }}>{v.name}</div>
             <span style={{ fontFamily: T.mono, fontSize: 10, color: T.accent, fontWeight: 600, letterSpacing: 0.5 }}>{v.category.toUpperCase()}</span>
           </Card>
@@ -611,74 +780,56 @@ function VideosView() {
   )
 }
 
-function ClientView({ client, onLogout }) {
-  const [page, setPage] = useState("home")
+function ClientView({ client, onLogout, exercises }) {
+  const mobile = useIsMobile()
+  const [page, setPage] = useAppHistory("home")
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <ClientNav active={page} onNav={setPage} client={client} onLogout={onLogout} />
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 24px 60px" }}>
+      <NavBar active={page} onNav={setPage} name={client.name} tabs={["Home", "Programming", "Assessments", "Progress", "Videos"]} onLogout={onLogout} />
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "home" && <ClientHome client={client} onNav={setPage} />}
         {page === "programming" && <ProgramView client={client} />}
         {page === "assessments" && <AssessmentView client={client} />}
         {page === "progress" && <ProgressView client={client} />}
-        {page === "videos" && <VideosView />}
+        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════
-// TRAINER VIEW (Kristin)
+// STAFF VIEWS
 // ═══════════════════════════════════════════
-
-function StaffNav({ active, onNav, name, label, labelColor, tabs, onLogout }) {
-  return (
-    <div style={{ position: "sticky", top: 0, zIndex: 100, backgroundColor: T.ink, padding: "0 24px" }}>
-      <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 56 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: labelColor, fontWeight: 700, letterSpacing: 1.5 }}>{label}</span>
-          <div style={{ display: "flex", gap: 2 }}>
-            {tabs.map(t => <button key={t} onClick={() => onNav(t.toLowerCase())} style={{
-              background: active === t.toLowerCase() ? T.accentDeep : "transparent", color: active === t.toLowerCase() ? T.white : "#9CA3AF",
-              border: "none", padding: "6px 14px", borderRadius: T.r.sm, fontSize: 13, fontWeight: active === t.toLowerCase() ? 600 : 400, cursor: "pointer", fontFamily: T.sans,
-            }}>{t}</button>)}
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar name={name} size={30} /><span style={{ fontSize: 13, color: "#9CA3AF" }}>{name}</span>
-          <button onClick={onLogout} style={{ background: "none", border: "none", fontSize: 11, color: "#6B7280", cursor: "pointer", fontFamily: T.sans, marginLeft: 8 }}>Sign out</button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function Roster({ clients, onSelect }) {
+  const mobile = useIsMobile()
   const active = clients.filter(c => c.status === "active")
   const totalSessions = active.reduce((s, c) => s + c.programming.days.length, 0)
   const done = active.reduce((s, c) => s + c.programming.days.filter(d => d.completed).length, 0)
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Clients</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{active.length} active, {totalSessions} sessions this week ({done} done)</div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Clients</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{active.length} active, {totalSessions} sessions this week ({done} done)</div></div>
+      <Grid cols={3} mobileCols={1} gap={12}>
         <Card><Label color="#6B7280">Active Clients</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{active.length}</div></Card>
         <Card><Label color="#6B7280">Sessions This Week</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{done}/{totalSessions}</div></Card>
         <Card><Label color="#6B7280">Kinstretch Thu 9 AM</Label><div style={{ fontSize: 16, fontWeight: 600, color: T.accent }}>{clients.filter(c => c.programming.days.some(d => d.focus.includes("Kinstretch"))).length} enrolled</div></Card>
-      </div>
+      </Grid>
       {active.map(c => {
         const nextDay = c.programming.days.find(d => !d.completed)
         return (
-          <Card key={c.id} style={{ cursor: "pointer" }} onClick={() => onSelect(c.id)}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Card key={c.id} onClick={() => onSelect(c.id)}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <Avatar name={c.name} size={40} />
                 <div><div style={{ fontSize: 15, fontWeight: 600, color: T.ink }}>{c.name}</div><div style={{ fontSize: 12, color: "#6B7280" }}>{c.plan}, {c.programming.phase}</div></div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <div style={{ textAlign: "right" }}><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280" }}>THIS WEEK</div><div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{c.programming.days.filter(d => d.completed).length}/{c.programming.days.length}</div></div>
-                {nextDay && <div style={{ textAlign: "right" }}><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280" }}>NEXT</div><div style={{ fontSize: 12, color: T.accent, fontWeight: 500 }}>{nextDay.day}, {nextDay.date}</div></div>}
-                <span style={{ fontSize: 16, color: "#9CA3AF" }}>→</span>
-              </div>
+              {!mobile && (
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div style={{ textAlign: "right" }}><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280" }}>THIS WEEK</div><div style={{ fontSize: 14, fontWeight: 600, color: T.ink }}>{c.programming.days.filter(d => d.completed).length}/{c.programming.days.length}</div></div>
+                  {nextDay && <div style={{ textAlign: "right" }}><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280" }}>NEXT</div><div style={{ fontSize: 12, color: T.accent, fontWeight: 500 }}>{nextDay.day}, {nextDay.date}</div></div>}
+                  <span style={{ fontSize: 16, color: "#9CA3AF" }}>→</span>
+                </div>
+              )}
             </div>
             {c.notes.length > 0 && <div style={{ marginTop: 12, padding: "8px 12px", backgroundColor: T.warmBg, borderRadius: T.r.sm }}><span style={{ fontSize: 11, color: "#6B7280" }}>Last note ({c.notes[0].date}): </span><span style={{ fontSize: 11, color: T.ink }}>{c.notes[0].text.length > 100 ? c.notes[0].text.slice(0, 100) + "..." : c.notes[0].text}</span></div>}
           </Card>
@@ -688,21 +839,38 @@ function Roster({ clients, onSelect }) {
   )
 }
 
-function ClientDetail({ client, onBack }) {
+function ClientDetail({ client, onBack, userName, onRefresh }) {
+  const mobile = useIsMobile()
   const [tab, setTab] = useState("program")
   const [newNote, setNewNote] = useState("")
   const [showNoteForm, setShowNoteForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSaveNote() {
+    if (!newNote.trim()) return
+    setSaving(true)
+    try {
+      if (!USE_MOCK) {
+        await db.addNote(client.id, userName, newNote)
+        if (onRefresh) await onRefresh()
+      }
+      setNewNote("")
+      setShowNoteForm(false)
+    } catch (err) { console.error("Failed to save note:", err) }
+    setSaving(false)
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "slideUp 0.3s ease" }}>
       <div style={{ padding: "20px 0 0" }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.accent, fontWeight: 500, padding: 0, fontFamily: T.sans, marginBottom: 12 }}>← Back to roster</button>
+        <button onClick={onBack} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: T.accent, fontWeight: 500, padding: 0, fontFamily: T.sans, marginBottom: 12, display: "flex", alignItems: "center", gap: 4 }}>← Back to roster</button>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <Avatar name={client.name} size={48} />
-          <div><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>{client.name}</h1><div style={{ fontSize: 13, color: "#6B7280" }}>{client.plan}, Started {client.startDate}, {client.programming.phase}</div></div>
+          <div><h1 style={{ fontSize: mobile ? 18 : 22, fontWeight: 700, color: T.ink, margin: 0 }}>{client.name}</h1><div style={{ fontSize: 13, color: "#6B7280" }}>{client.plan}, Started {client.startDate}, {client.programming.phase}</div></div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>{client.goals.map((g, i) => <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.warmCloud, padding: "4px 10px", borderRadius: 4 }}>{g}</span>)}</div>
+        <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>{client.goals.map((g, i) => <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.accentLight, padding: "4px 10px", borderRadius: 20 }}>{g}</span>)}</div>
       </div>
-      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${T.mist}`, paddingBottom: 8 }}>
+      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${T.mist}`, paddingBottom: 8, overflowX: "auto" }}>
         {["program", "assessments", "progress", "notes"].map(t => <Btn key={t} active={tab === t} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}
       </div>
       {tab === "program" && <ProgramView client={client} editable />}
@@ -712,9 +880,12 @@ function ClientDetail({ client, onBack }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><Label>Session Notes</Label><Btn active onClick={() => setShowNoteForm(!showNoteForm)} color={T.accent}>+ Add Note</Btn></div>
           {showNoteForm && (
-            <Card style={{ border: `1px solid ${T.accent}` }}>
+            <Card accent>
               <Textarea value={newNote} onChange={setNewNote} placeholder="Session notes... (what you worked on, what to watch for, load changes)" />
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}><Btn active onClick={() => { setNewNote(""); setShowNoteForm(false) }} color={T.accent}>Save Note</Btn><Btn onClick={() => { setNewNote(""); setShowNoteForm(false) }}>Cancel</Btn></div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <Btn active onClick={handleSaveNote} color={T.accent}>{saving ? "Saving..." : "Save Note"}</Btn>
+                <Btn onClick={() => { setNewNote(""); setShowNoteForm(false) }}>Cancel</Btn>
+              </div>
             </Card>
           )}
           {client.notes.map((n, i) => (
@@ -727,26 +898,49 @@ function ClientDetail({ client, onBack }) {
 }
 
 function ScheduleView({ clients }) {
+  const mobile = useIsMobile()
   const dayMap = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday" }
   const schedule = ["Mon", "Tue", "Wed", "Thu", "Fri"].map(d => {
     const sessions = []
     clients.forEach(c => c.programming.days.forEach(day => { if (day.day === dayMap[d]) sessions.push({ client: c.name, focus: day.focus, completed: day.completed }) }))
     if (d === "Thu") {
       const kin = clients.filter(c => c.programming.days.some(day => day.focus.includes("Kinstretch")))
-      if (kin.length) sessions.unshift({ client: `Kinstretch Class (${kin.length})`, focus: "9:00 AM Group", isClass: true })
+      if (kin.length) sessions.unshift({ client: `Kinstretch (${kin.length})`, focus: "9:00 AM Group", isClass: true })
     }
     return { day: d, sessions }
   })
+
+  if (mobile) {
+    // Mobile: vertical list
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "fadeIn 0.3s ease" }}>
+        <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>This Week</h1></div>
+        {schedule.filter(s => s.sessions.length > 0).map(s => (
+          <Card key={s.day}>
+            <div style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: T.accent, letterSpacing: 0.5, marginBottom: 10 }}>{s.day}</div>
+            {s.sessions.map((sess, i) => (
+              <div key={i} style={{ padding: "8px 0", borderBottom: i < s.sessions.length - 1 ? `1px solid ${T.mist}` : "none" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.ink }}>{sess.client}</div>
+                <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{sess.focus}</div>
+                {!sess.isClass && <span style={{ fontSize: 9, fontWeight: 700, color: sess.completed ? T.green : T.amber }}>{sess.completed ? "DONE" : "UPCOMING"}</span>}
+              </div>
+            ))}
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>This Week</h1></div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>This Week</h1></div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
         {schedule.map(s => (
           <div key={s.day}>
             <div style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: T.ink, marginBottom: 8, letterSpacing: 0.5, textAlign: "center", padding: "8px 0", backgroundColor: T.warmCloud, borderRadius: T.r.sm }}>{s.day}</div>
             {!s.sessions.length && <div style={{ fontSize: 11, color: "#9CA3AF", textAlign: "center", padding: 16 }}>No sessions</div>}
             {s.sessions.map((sess, i) => (
-              <div key={i} style={{ backgroundColor: sess.isClass ? `${T.purple}10` : T.white, border: `1px solid ${sess.isClass ? T.purple + "30" : T.mist}`, borderRadius: T.r.sm, padding: 10, marginBottom: 6 }}>
+              <div key={i} style={{ backgroundColor: sess.isClass ? `${T.purple}10` : T.white, border: `1px solid ${sess.isClass ? T.purple + "30" : T.mist}`, borderRadius: T.r.sm, padding: 10, marginBottom: 6, boxShadow: T.shadow.sm }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: T.ink }}>{sess.client}</div>
                 <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2 }}>{sess.focus}</div>
                 {!sess.isClass && <div style={{ marginTop: 4 }}><span style={{ fontSize: 9, fontWeight: 700, color: sess.completed ? T.green : T.amber }}>{sess.completed ? "DONE" : "UPCOMING"}</span></div>}
@@ -759,62 +953,64 @@ function ScheduleView({ clients }) {
   )
 }
 
-function TrainerView({ onLogout }) {
-  const [page, setPage] = useState("roster")
+function TrainerView({ onLogout, allClients, exercises, onRefresh }) {
+  const mobile = useIsMobile()
+  const [page, setPage] = useAppHistory("roster")
   const [selectedClient, setSelectedClient] = useState(null)
-  const client = selectedClient ? ALL_CLIENTS.find(c => c.id === selectedClient) : null
+  const client = selectedClient ? allClients.find(c => c.id === selectedClient) : null
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <StaffNav active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Videos"]} onLogout={onLogout} />
-      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 24px 60px" }}>
-        {page === "roster" && !selectedClient && <Roster clients={ALL_CLIENTS} onSelect={setSelectedClient} />}
-        {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} />}
-        {page === "schedule" && <ScheduleView clients={ALL_CLIENTS} />}
-        {page === "videos" && <VideosView />}
+      <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Videos"]} onLogout={onLogout} />
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
+        {page === "roster" && !selectedClient && <Roster clients={allClients} onSelect={setSelectedClient} />}
+        {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Kristin" onRefresh={onRefresh} />}
+        {page === "schedule" && <ScheduleView clients={allClients} />}
+        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
 }
 
 // ═══════════════════════════════════════════
-// OWNER VIEW (Damir)
+// OWNER VIEW
 // ═══════════════════════════════════════════
 
 function OwnerOverview({ clients, onNav }) {
+  const mobile = useIsMobile()
   const active = clients.filter(c => c.status === "active")
   const totalSessions = active.reduce((s, c) => s + c.programming.days.length, 0)
   const done = active.reduce((s, c) => s + c.programming.days.filter(d => d.completed).length, 0)
   const assessed = active.filter(c => c.assessments.length > 0).length
   const revenue = active.reduce((s, c) => s + c.programming.days.length * 99, 0)
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ padding: "28px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Active Health Fit Overview</h1></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <Card><Label color="#6B7280">Active Clients</Label><div style={{ fontSize: 32, fontWeight: 700, color: T.ink }}>{active.length}</div></Card>
-        <Card><Label color="#6B7280">Weekly Sessions</Label><div style={{ fontSize: 32, fontWeight: 700, color: T.ink }}>{done}/{totalSessions}</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 8 }}><div style={{ width: `${totalSessions ? (done / totalSessions) * 100 : 0}%`, height: 4, backgroundColor: T.accent, borderRadius: 2 }} /></div></Card>
-        <Card><Label color="#6B7280">Assessed</Label><div style={{ fontSize: 32, fontWeight: 700, color: T.ink }}>{assessed}/{active.length}</div></Card>
-        <Card><Label color="#6B7280">Weekly Revenue</Label><div style={{ fontSize: 32, fontWeight: 700, color: T.green }}>${revenue}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{totalSessions} sessions x $99/hr</div></Card>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "slideUp 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: 22, fontWeight: 700, color: T.ink, margin: 0 }}>Active Health Fit Overview</h1></div>
+      <Grid cols={4} mobileCols={2} gap={12}>
+        <Card><Label color="#6B7280">Active Clients</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{active.length}</div></Card>
+        <Card><Label color="#6B7280">Weekly Sessions</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{done}/{totalSessions}</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 8 }}><div style={{ width: `${totalSessions ? (done / totalSessions) * 100 : 0}%`, height: 4, backgroundColor: T.accent, borderRadius: 2, transition: "width 0.5s ease" }} /></div></Card>
+        <Card><Label color="#6B7280">Assessed</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{assessed}/{active.length}</div></Card>
+        <Card><Label color="#6B7280">Weekly Revenue</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.green }}>${revenue}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{totalSessions} x $99/hr</div></Card>
+      </Grid>
       <Card>
         <Label>Kristin Hours Tracker</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <div><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", marginBottom: 4 }}>THIS WEEK</div><div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>{totalSessions} hrs</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>of 10 hr cap</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 6 }}><div style={{ width: `${(totalSessions / 10) * 100}%`, height: 4, backgroundColor: totalSessions > 10 ? T.red : T.accent, borderRadius: 2 }} /></div></div>
+        <Grid cols={3} mobileCols={1} gap={16}>
+          <div><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", marginBottom: 4 }}>THIS WEEK</div><div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>{totalSessions} hrs</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>of 10 hr cap</div><div style={{ width: "100%", height: 4, backgroundColor: T.mist, borderRadius: 2, marginTop: 6 }}><div style={{ width: `${Math.min((totalSessions / 10) * 100, 100)}%`, height: 4, backgroundColor: totalSessions > 10 ? T.red : T.accent, borderRadius: 2, transition: "width 0.5s ease" }} /></div></div>
           <div><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", marginBottom: 4 }}>TRAINING PAY</div><div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>${totalSessions * 40}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{totalSessions} hrs x $40/hr</div></div>
           <div><div style={{ fontFamily: T.mono, fontSize: 10, color: "#6B7280", marginBottom: 4 }}>PROGRAMMING PAY</div><div style={{ fontSize: 20, fontWeight: 700, color: T.ink }}>${active.length * 25}</div><div style={{ fontSize: 11, color: "#9CA3AF" }}>{active.length} clients x $25/hr</div></div>
-        </div>
+        </Grid>
       </Card>
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><Label>Client Roster</Label><button onClick={() => onNav("clients")} style={{ background: "none", border: "none", fontSize: 12, color: T.accent, fontWeight: 500, cursor: "pointer", fontFamily: T.sans }}>View all →</button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><Label>Client Roster</Label><button onClick={() => onNav("clients")} style={{ background: "none", border: "none", fontSize: 12, color: T.accent, fontWeight: 600, cursor: "pointer", fontFamily: T.sans }}>View all →</button></div>
         {active.map(c => (
-          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${T.mist}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Avatar name={c.name} size={28} /><span style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{c.name}</span><span style={{ fontSize: 11, color: "#6B7280" }}>{c.plan}</span></div>
+          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${T.mist}`, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Avatar name={c.name} size={28} /><span style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{c.name}</span>{!mobile && <span style={{ fontSize: 11, color: "#6B7280" }}>{c.plan}</span>}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: T.mono, fontSize: 11, color: c.assessments.length ? T.green : T.amber }}>{c.assessments.length ? "Assessed" : "No assessment"}</span><span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280" }}>{c.programming.days.filter(d => d.completed).length}/{c.programming.days.length} done</span></div>
           </div>
         ))}
       </Card>
-      <Card style={{ backgroundColor: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+      <Card style={{ background: "linear-gradient(135deg, #F0FDF4, #DCFCE7)", border: "1px solid #BBF7D0" }}>
         <Label color="#166534">Platform Savings</Label>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div><div style={{ fontSize: 14, color: "#166534" }}>TrainHeroic was $37/month. This dashboard is $0/month.</div><div style={{ fontSize: 12, color: "#166534", marginTop: 4 }}>Supabase free tier + Vercel free tier. Full control over your data.</div></div>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#166534" }}>$444/yr saved</div>
         </div>
@@ -823,19 +1019,128 @@ function OwnerOverview({ clients, onNav }) {
   )
 }
 
-function OwnerView({ onLogout }) {
-  const [page, setPage] = useState("overview")
+function AddClientForm({ onSave, onCancel }) {
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [plan, setPlan] = useState("")
+  const [goals, setGoals] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      await onSave({
+        full_name: name.trim(), email: email.trim() || null,
+        plan: plan.trim(), goals: goals.split("\n").map(g => g.trim()).filter(Boolean), status: "active",
+      })
+    } catch (err) { console.error("Failed to add client:", err) }
+    setSaving(false)
+  }
+
+  return (
+    <Card accent style={{ animation: "slideUp 0.3s ease" }}>
+      <Label>Add New Client</Label>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div><label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>FULL NAME *</label><Input value={name} onChange={setName} placeholder="Sarah Mitchell" /></div>
+        <div><label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>EMAIL (for login)</label><Input value={email} onChange={setEmail} placeholder="sarah@email.com" type="email" /></div>
+        <div><label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>TRAINING PLAN</label><Input value={plan} onChange={setPlan} placeholder="2x/week, Tue/Thu" /></div>
+        <div><label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>GOALS (one per line)</label><Textarea value={goals} onChange={setGoals} placeholder={"Improve hip stability\nDeadlift 185 lbs\nRun pain-free 5K"} rows={3} /></div>
+        <div style={{ display: "flex", gap: 8, marginTop: 4 }}><Btn active onClick={() => {}} color={T.accent}>{saving ? "Saving..." : "Add Client"}</Btn><Btn onClick={onCancel}>Cancel</Btn></div>
+      </form>
+    </Card>
+  )
+}
+
+function ImportTool({ onDone }) {
+  const [csv, setCsv] = useState("")
+  const [status, setStatus] = useState("")
+  const [importing, setImporting] = useState(false)
+
+  async function handleImport() {
+    if (!csv.trim()) return
+    setImporting(true)
+    setStatus("Parsing CSV...")
+    try {
+      const lines = csv.trim().split("\n")
+      const headers = lines[0].split(",").map(h => h.trim().toLowerCase())
+      const rows = lines.slice(1).map(line => {
+        const vals = line.split(",").map(v => v.trim())
+        const obj = {}
+        headers.forEach((h, i) => { obj[h] = vals[i] || "" })
+        return obj
+      })
+      let created = 0
+      for (const row of rows) {
+        const clientData = {
+          full_name: row.name || row.full_name || "",
+          email: row.email || null, plan: row.plan || "",
+          goals: (row.goals || "").split(";").map(g => g.trim()).filter(Boolean),
+          status: "active", start_date: row.start_date || new Date().toISOString().split("T")[0],
+          next_session: row.next_session || "",
+        }
+        if (!clientData.full_name) continue
+        if (!USE_MOCK) { await db.createClient(clientData) }
+        created++
+        setStatus(`Created ${created} of ${rows.length}...`)
+      }
+      setStatus(`Done. ${created} clients imported.`)
+      setTimeout(() => { if (onDone) onDone() }, 1500)
+    } catch (err) { setStatus(`Error: ${err.message}`) }
+    setImporting(false)
+  }
+
+  return (
+    <Card accent style={{ animation: "slideUp 0.3s ease" }}>
+      <Label>Import Clients from CSV</Label>
+      <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 12, lineHeight: 1.5 }}>
+        Paste CSV with headers: <strong>name, email, plan, goals, start_date, next_session</strong><br />
+        Goals separated with semicolons.
+      </p>
+      <div style={{ fontSize: 11, fontFamily: T.mono, color: "#4B5563", backgroundColor: T.warmBg, padding: 12, borderRadius: T.r.sm, marginBottom: 12, lineHeight: 1.6, overflowX: "auto" }}>
+        name,email,plan,goals,start_date,next_session<br />
+        Sarah Mitchell,sarah@gmail.com,2x/week Tue/Thu,Hip stability;Deadlift 185,2025-11-04,Thu Mar 13 10AM
+      </div>
+      <Textarea value={csv} onChange={setCsv} placeholder="Paste your CSV here..." rows={6} />
+      {status && <div style={{ fontSize: 12, color: importing ? "#6B7280" : status.startsWith("Error") ? T.red : T.green, marginTop: 8 }}>{status}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}><Btn active onClick={handleImport} color={T.accent}>{importing ? "Importing..." : "Import"}</Btn><Btn onClick={onDone}>Close</Btn></div>
+    </Card>
+  )
+}
+
+function OwnerView({ onLogout, allClients, exercises, onRefresh }) {
+  const mobile = useIsMobile()
+  const [page, setPage] = useAppHistory("overview")
   const [selectedClient, setSelectedClient] = useState(null)
-  const client = selectedClient ? ALL_CLIENTS.find(c => c.id === selectedClient) : null
+  const [showAddClient, setShowAddClient] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const client = selectedClient ? allClients.find(c => c.id === selectedClient) : null
+
+  async function handleAddClient(clientData) {
+    if (!USE_MOCK) { await db.createClient(clientData); if (onRefresh) await onRefresh() }
+    setShowAddClient(false)
+  }
+
   return (
     <div style={{ fontFamily: T.sans, backgroundColor: T.warmBg, minHeight: "100vh" }}>
-      <StaffNav active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Schedule", "Videos"]} onLogout={onLogout} />
-      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 24px 60px" }}>
-        {page === "overview" && <OwnerOverview clients={ALL_CLIENTS} onNav={setPage} />}
-        {page === "clients" && !selectedClient && <Roster clients={ALL_CLIENTS} onSelect={setSelectedClient} />}
-        {page === "clients" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} />}
-        {page === "schedule" && <ScheduleView clients={ALL_CLIENTS} />}
-        {page === "videos" && <VideosView />}
+      <NavBar active={selectedClient ? "clients" : page} onNav={p => { setPage(p); setSelectedClient(null); setShowAddClient(false); setShowImport(false) }} name="Dr. Simunac" label="AH FIT ADMIN" labelColor={T.red} tabs={["Overview", "Clients", "Schedule", "Videos"]} onLogout={onLogout} />
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
+        {page === "overview" && <OwnerOverview clients={allClients} onNav={setPage} />}
+        {page === "clients" && !selectedClient && !showAddClient && !showImport && (
+          <>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", padding: "24px 0 12px", gap: 8 }}>
+              <Btn active onClick={() => setShowAddClient(true)} color={T.accent}>+ Add Client</Btn>
+              <Btn onClick={() => setShowImport(true)}>Import CSV</Btn>
+            </div>
+            <Roster clients={allClients} onSelect={setSelectedClient} />
+          </>
+        )}
+        {page === "clients" && showAddClient && <div style={{ paddingTop: 24 }}><AddClientForm onSave={handleAddClient} onCancel={() => setShowAddClient(false)} /></div>}
+        {page === "clients" && showImport && <div style={{ paddingTop: 24 }}><ImportTool onDone={async () => { setShowImport(false); if (onRefresh) await onRefresh() }} /></div>}
+        {page === "clients" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Dr. Simunac" onRefresh={onRefresh} />}
+        {page === "schedule" && <ScheduleView clients={allClients} />}
+        {page === "videos" && <VideosView exercises={exercises} />}
       </div>
     </div>
   )
@@ -848,45 +1153,77 @@ function OwnerView({ onLogout }) {
 export default function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(!USE_MOCK)
+  const [allClients, setAllClients] = useState(MOCK_CLIENTS)
+  const [exercises, setExercises] = useState(MOCK_EXERCISES)
+  const [dataLoading, setDataLoading] = useState(false)
+
+  const loadData = useCallback(async () => {
+    if (USE_MOCK) return
+    setDataLoading(true)
+    try {
+      const [clients, exList] = await Promise.all([db.loadAllClients(), db.getExercises()])
+      setAllClients(clients.length ? clients : MOCK_CLIENTS)
+      setExercises(exList.length ? exList : MOCK_EXERCISES)
+    } catch (err) { console.error("Failed to load data:", err); setAllClients(MOCK_CLIENTS); setExercises(MOCK_EXERCISES) }
+    setDataLoading(false)
+  }, [])
 
   useEffect(() => {
     if (USE_MOCK) return
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        // In production, fetch user role from profiles table
-        setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email })
+        try {
+          const profile = await db.getProfile(session.user.id)
+          const userData = { id: session.user.id, email: session.user.email, role: profile.role, name: profile.full_name }
+          if (profile.role === "client") {
+            const clientRecord = await db.getClientByProfileId(session.user.id)
+            if (clientRecord) userData.clientId = clientRecord.id
+          }
+          setUser(userData)
+        } catch { setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email }) }
       }
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email })
-      } else {
-        setUser(null)
-      }
+        try {
+          const profile = await db.getProfile(session.user.id)
+          const userData = { id: session.user.id, email: session.user.email, role: profile.role, name: profile.full_name }
+          if (profile.role === "client") {
+            const clientRecord = await db.getClientByProfileId(session.user.id)
+            if (clientRecord) userData.clientId = clientRecord.id
+          }
+          setUser(userData)
+        } catch { setUser({ id: session.user.id, email: session.user.email, role: "client", name: session.user.email }) }
+      } else { setUser(null) }
     })
     return () => subscription.unsubscribe()
   }, [])
 
+  useEffect(() => { if (user && !USE_MOCK) loadData() }, [user, loadData])
+
   function handleLogout() {
     if (!USE_MOCK) supabase.auth.signOut()
-    setUser(null)
+    setUser(null); setAllClients(MOCK_CLIENTS); setExercises(MOCK_EXERCISES)
+    window.history.replaceState(null, "", window.location.pathname)
   }
 
-  if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280" }}>Loading...</div>
-
+  if (loading) return <div style={{ minHeight: "100vh", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280" }}>Loading...</div>
   if (!user) return <LoginScreen onMockLogin={setUser} />
+  if (dataLoading) return <div style={{ minHeight: "100vh", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280", gap: 12 }}><Spinner /><span>Loading your dashboard...</span></div>
 
-  const clientData = user.role === "client" ? ALL_CLIENTS.find(c => c.id === user.clientId) || ALL_CLIENTS[0] : null
+  const clientData = user.role === "client" ? allClients.find(c => c.id === user.clientId) || allClients[0] : null
 
   return (
     <AuthContext.Provider value={user}>
-      {user.role === "owner" && <OwnerView onLogout={handleLogout} />}
-      {user.role === "trainer" && <TrainerView onLogout={handleLogout} />}
-      {user.role === "client" && clientData && <ClientView client={clientData} onLogout={handleLogout} />}
-      <div style={{ borderTop: `1px solid ${T.mist}`, padding: "16px 24px", textAlign: "center" }}>
-        <span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF", letterSpacing: 0.5 }}>ACTIVE HEALTH FIT · POWERED BY ACTIVE HEALTH SPINE & SPORT</span>
-      </div>
+      <DataContext.Provider value={{ allClients, exercises, refresh: loadData }}>
+        {user.role === "owner" && <OwnerView onLogout={handleLogout} allClients={allClients} exercises={exercises} onRefresh={loadData} />}
+        {user.role === "trainer" && <TrainerView onLogout={handleLogout} allClients={allClients} exercises={exercises} onRefresh={loadData} />}
+        {user.role === "client" && clientData && <ClientView client={clientData} onLogout={handleLogout} exercises={exercises} />}
+        <div style={{ borderTop: `1px solid ${T.mist}`, padding: "16px 24px", textAlign: "center" }}>
+          <span style={{ fontFamily: T.mono, fontSize: 10, color: "#9CA3AF", letterSpacing: 0.5 }}>ACTIVE HEALTH FIT · POWERED BY ACTIVE HEALTH SPINE & SPORT</span>
+        </div>
+      </DataContext.Provider>
     </AuthContext.Provider>
   )
 }
