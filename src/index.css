@@ -1,0 +1,5 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { font-family: 'DM Sans', system-ui, -apple-system, sans-serif; background: #FAFAF8; color: #1A1D23; }
+button { font-family: inherit; }
+input, textarea, select { font-family: inherit; }
