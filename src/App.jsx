@@ -670,7 +670,7 @@ function Roster({ clients, onSelect }) {
 
 function ClientDetail({ client, onBack, userName, onRefresh }) {
   const mobile = useIsMobile()
-  const [tab, setTab] = useState("program")
+  const [tab, setTab] = useState("sessions")
   const [newNote, setNewNote] = useState("")
   const [showNoteForm, setShowNoteForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -700,11 +700,12 @@ function ClientDetail({ client, onBack, userName, onRefresh }) {
         <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>{client.goals.map((g, i) => <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.accentLight, padding: "4px 10px", borderRadius: 20 }}>{g}</span>)}</div>
       </div>
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${T.mist}`, paddingBottom: 8, overflowX: "auto" }}>
-        {["program", "assessments", "progress", "notes"].map(t => <Btn key={t} active={tab === t} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}
+        {["sessions", "financials", "program", "assessments", "notes"].map(t => <Btn key={t} active={tab === t} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}
       </div>
+      {tab === "sessions" && <SessionHistoryView client={client} />}
+      {tab === "financials" && <FinancialsView client={client} />}
       {tab === "program" && <ProgramView client={client} editable />}
       {tab === "assessments" && <AssessmentView client={client} />}
-      {tab === "progress" && <ProgressView client={client} />}
       {tab === "notes" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><Label>Session Notes</Label><Btn active onClick={() => setShowNoteForm(!showNoteForm)} color={T.accent}>+ Add Note</Btn></div>
@@ -722,6 +723,102 @@ function ClientDetail({ client, onBack, userName, onRefresh }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function SessionHistoryView({ client }) {
+  const mobile = useIsMobile()
+  const sessions = client.sessionHistory || []
+  if (!sessions.length) return <div style={{ padding: "60px 0", textAlign: "center" }}><div style={{ fontSize: 16, color: "#6B7280" }}>No session history.</div></div>
+
+  const grouped = {}
+  sessions.forEach(s => {
+    const d = new Date(s.date + "T12:00:00")
+    const key = d.toLocaleDateString("en-US", { year: "numeric", month: "long" })
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(s)
+  })
+
+  const months = Object.keys(grouped).reverse()
+  const totalSessions = sessions.length
+  const firstDate = new Date(sessions[0].date + "T12:00:00")
+  const lastDate = new Date(sessions[sessions.length - 1].date + "T12:00:00")
+  const totalWeeks = Math.max(1, Math.round((lastDate - firstDate) / (7 * 24 * 60 * 60 * 1000)))
+  const avgPerWeek = (totalSessions / totalWeeks).toFixed(1)
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: mobile ? 18 : 22, fontWeight: 700, color: T.ink, margin: 0 }}>Session History</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{totalSessions} total sessions since {firstDate.toLocaleDateString("en-US", { month: "short", year: "numeric" })}</div></div>
+      <Grid cols={3} mobileCols={1} gap={12}>
+        <Card><Label color="#6B7280">Total Sessions</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{totalSessions}</div></Card>
+        <Card><Label color="#6B7280">Avg / Week</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.accent }}>{avgPerWeek}</div></Card>
+        <Card><Label color="#6B7280">Active Since</Label><div style={{ fontSize: 16, fontWeight: 600, color: T.ink }}>{firstDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div></Card>
+      </Grid>
+      {months.map(month => (
+        <Card key={month}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <Label>{month}</Label>
+            <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 700, color: T.accent }}>{grouped[month].length} sessions</span>
+          </div>
+          {grouped[month].reverse().map((s, i) => {
+            const d = new Date(s.date + "T12:00:00")
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: i % 2 === 0 ? T.warmBg : T.white, borderRadius: T.r.sm }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: T.mono, fontSize: 11, color: "#6B7280", minWidth: 80 }}>{d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                  <span style={{ fontSize: 13, color: T.ink }}>{s.note}</span>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, color: T.accent, backgroundColor: `${T.accent}18`, padding: "3px 8px", borderRadius: 10, fontFamily: T.mono }}>{s.type}</span>
+              </div>
+            )
+          })}
+        </Card>
+      ))}
+    </div>
+  )
+}
+
+function FinancialsView({ client }) {
+  const mobile = useIsMobile()
+  const fin = client.financials
+  if (!fin) return <div style={{ padding: "60px 0", textAlign: "center" }}><div style={{ fontSize: 16, color: "#6B7280" }}>No financial data.</div></div>
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ padding: "24px 0 0" }}><h1 style={{ fontSize: mobile ? 18 : 22, fontWeight: 700, color: T.ink, margin: 0 }}>Financials</h1><div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>Package purchases and session balance</div></div>
+      <Grid cols={4} mobileCols={2} gap={12}>
+        <Card><Label color="#6B7280">Lifetime Revenue</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>${fin.totalSpent.toLocaleString()}</div></Card>
+        <Card><Label color="#6B7280">Sessions Purchased</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.ink }}>{fin.totalPurchased}</div></Card>
+        <Card><Label color="#6B7280">Sessions Used</Label><div style={{ fontSize: 28, fontWeight: 700, color: T.accent }}>{fin.totalUsed}</div></Card>
+        <Card><Label color="#6B7280">Balance</Label><div style={{ fontSize: 28, fontWeight: 700, color: fin.balance < 0 ? T.red : T.green }}>{fin.balance}</div>{fin.balance < 0 && <div style={{ fontSize: 11, color: T.red, marginTop: 2 }}>Needs new pack</div>}</Card>
+      </Grid>
+      <Card>
+        <Label>Package History</Label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {!mobile && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px", gap: 8, padding: "8px 12px", backgroundColor: T.warmCloud, borderRadius: "6px 6px 0 0" }}>
+              {["DATE", "SESSIONS", "AMOUNT", "STATUS"].map(h => <span key={h} style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5 }}>{h}</span>)}
+            </div>
+          )}
+          {fin.packages.map((p, i) => {
+            const d = new Date(p.date + "T12:00:00")
+            const isLatest = i === fin.packages.length - 1
+            return (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: mobile ? "1fr 1fr" : "1fr 100px 100px 100px", gap: 8, padding: "10px 12px", backgroundColor: i % 2 === 0 ? T.white : T.warmBg, alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: T.ink }}>{d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                <span style={{ fontFamily: T.mono, fontSize: 13, color: "#6B7280" }}>{p.sessions} sessions</span>
+                {!mobile && <span style={{ fontFamily: T.mono, fontSize: 13, fontWeight: 600, color: T.ink }}>${p.amount}</span>}
+                {!mobile && <span style={{ fontSize: 9, fontWeight: 700, color: isLatest ? T.amber : T.green, backgroundColor: isLatest ? `${T.amber}18` : `${T.green}18`, padding: "3px 8px", borderRadius: 10, fontFamily: T.mono, textAlign: "center" }}>{isLatest ? "ACTIVE" : "USED"}</span>}
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+      <Card style={{ backgroundColor: T.warmCloud, border: "none" }}>
+        <Label color="#6B7280">Per Session Cost</Label>
+        <div style={{ fontSize: 22, fontWeight: 700, color: T.ink }}>${(fin.totalSpent / fin.totalUsed).toFixed(0)} <span style={{ fontSize: 13, fontWeight: 400, color: "#6B7280" }}>avg per session</span></div>
+      </Card>
     </div>
   )
 }
