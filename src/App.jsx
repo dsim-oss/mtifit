@@ -668,7 +668,7 @@ function Roster({ clients, onSelect }) {
   )
 }
 
-function ClientDetail({ client, onBack, userName, onRefresh }) {
+function ClientDetail({ client, onBack, userName, onRefresh, role = "owner" }) {
   const mobile = useIsMobile()
   const [tab, setTab] = useState("sessions")
   const [newNote, setNewNote] = useState("")
@@ -700,7 +700,7 @@ function ClientDetail({ client, onBack, userName, onRefresh }) {
         <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>{client.goals.map((g, i) => <span key={i} style={{ fontSize: 11, color: T.ink, backgroundColor: T.accentLight, padding: "4px 10px", borderRadius: 20 }}>{g}</span>)}</div>
       </div>
       <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${T.mist}`, paddingBottom: 8, overflowX: "auto" }}>
-        {["sessions", "financials", "program", "assessments", "notes"].map(t => <Btn key={t} active={tab === t} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}
+        {(role === "owner" ? ["sessions", "financials", "program", "assessments", "notes"] : ["sessions", "program", "assessments", "notes"]).map(t => <Btn key={t} active={tab === t} onClick={() => setTab(t)}>{t.charAt(0).toUpperCase() + t.slice(1)}</Btn>)}
       </div>
       {tab === "sessions" && <SessionHistoryView client={client} />}
       {tab === "financials" && <FinancialsView client={client} />}
@@ -1191,7 +1191,7 @@ function TrainerView({ onLogout, allClients, onRefresh }) {
       <NavBar active={selectedClient ? "roster" : page} onNav={p => { setPage(p); setSelectedClient(null) }} name="Kristin" label="AH FIT TRAINER" labelColor={T.amber} tabs={["Roster", "Schedule", "Hours"]} onLogout={onLogout} />
       <div style={{ maxWidth: 1080, margin: "0 auto", padding: mobile ? "0 16px 60px" : "0 24px 60px" }}>
         {page === "roster" && !selectedClient && <Roster clients={allClients} onSelect={setSelectedClient} />}
-        {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Kristin" onRefresh={onRefresh} />}
+        {page === "roster" && client && <ClientDetail client={client} onBack={() => setSelectedClient(null)} userName="Kristin" onRefresh={onRefresh} role="trainer" />}
         {page === "schedule" && <ScheduleView clients={allClients} />}
         {page === "hours" && <TrainerHoursView clients={allClients} />}
       </div>
