@@ -54,10 +54,7 @@ const USE_MOCK = true
 const MOCK_USERS = {
   "damir": { id: "u1", email: "damir@activehealthchicago.com", role: "owner", name: "Dr. Simunac" },
   "kristin": { id: "u2", email: "kristin@activehealthchicago.com", role: "trainer", name: "Kristin" },
-  "sarah": { id: "u3", email: "sarah.m@gmail.com", role: "client", name: "Sarah Mitchell", clientId: "sarah-mitchell" },
-  "mike": { id: "u4", email: "mike.chen@email.com", role: "client", name: "Mike Chen", clientId: "mike-chen" },
-  "jenny": { id: "u5", email: "jenny.p@email.com", role: "client", name: "Jenny Park", clientId: "jenny-park" },
-  "tom": { id: "u6", email: "tom.russo@email.com", role: "client", name: "Tom Russo", clientId: "tom-russo" },
+  "575": { id: "u3", email: "client575@ahf.local", role: "client", name: "#575", clientId: "client-575" },
 }
 const SHARED_PASSWORD = "AHF"
 
@@ -70,215 +67,87 @@ const NAME_TO_EMAIL = {
 
 const MOCK_CLIENTS = [
   {
-    id: "sarah-mitchell", name: "Sarah Mitchell", email: "sarah.m@gmail.com",
-    startDate: "2025-11-04", plan: "2x/week, Tue/Thu", status: "active",
-    nextSession: "Thu, Mar 13, 10:00 AM",
-    pack: { price: 750, total: 10, used: 7, purchaseDate: "2026-02-01", tier: "Founders Club" },
-    goals: ["Improve hip stability", "Deadlift 185 lbs", "Run pain-free 5K"],
-    notes: [
-      { date: "Mar 11", from: "Kristin", text: "Great session today. Hip hinge is clicking. Add 10 lbs to RDL next week." },
-      { date: "Mar 6", from: "Kristin", text: "Shoulder felt tight on overhead press. Swapped for landmine press. Monitor next session." },
-      { date: "Feb 27", from: "Dr. Simunac", text: "Assessment update: Left glute med improved 18%. Keep loading single-leg work." },
+    id: "client-575", name: "#575", email: "client575@ahf.local",
+    startDate: "2025-08-15", plan: "2x/week, Tue/Thu", status: "active",
+    nextSession: "Thu, Mar 27",
+    pack: { price: 850, total: 10, used: 8, purchaseDate: "2026-01-29", tier: "Standard" },
+    goals: [],
+    notes: [],
+    packages: [
+      { purchaseDate: "2025-08-15", price: 850, total: 10, used: 10 },
+      { purchaseDate: "2025-10-20", price: 850, total: 10, used: 10 },
+      { purchaseDate: "2025-12-22", price: 850, total: 10, used: 10 },
+      { purchaseDate: "2026-01-29", price: 850, total: 10, used: 8 },
     ],
-    programming: {
-      weekLabel: "Week 12, Mar 10-14", phase: "Strength Block B",
-      days: [
-        { day: "Tuesday", date: "Mar 11", focus: "Lower Body, Posterior Chain", completed: true, blocks: [
-          { label: "Warm-Up", exercises: [
-            { name: "90/90 Hip Switches", sets: "2", reps: "8 each", load: "BW", note: "" },
-            { name: "Dead Bug w/ Band", sets: "2", reps: "8 each", load: "Light band", note: "Exhale fully at bottom" },
-            { name: "Banded Clamshell", sets: "2", reps: "12 each", load: "Medium band", note: "" },
-          ]},
-          { label: "Main Lifts", exercises: [
-            { name: "Barbell RDL", sets: "4", reps: "6", load: "115 lbs", note: "Hinge from hips. Bar stays close." },
-            { name: "Bulgarian Split Squat", sets: "3", reps: "8 each", load: "30 lb DBs", note: "Control the eccentric. 3 sec down." },
-            { name: "Hip Thrust", sets: "3", reps: "10", load: "135 lbs", note: "Pause 2 sec at top. Squeeze." },
-          ]},
-          { label: "Accessories", exercises: [
-            { name: "Single-Leg Calf Raise", sets: "3", reps: "12 each", load: "25 lb DB", note: "" },
-            { name: "Pallof Press", sets: "3", reps: "10 each", load: "Cable", note: "Slow and controlled" },
-          ]},
-        ]},
-        { day: "Thursday", date: "Mar 13", focus: "Upper Body, Push/Pull", completed: false, blocks: [
-          { label: "Warm-Up", exercises: [
-            { name: "Shoulder CARs", sets: "2", reps: "5 each", load: "BW", note: "Full range. Slow." },
-            { name: "Band Pull-Apart", sets: "2", reps: "15", load: "Light band", note: "" },
-          ]},
-          { label: "Main Lifts", exercises: [
-            { name: "DB Bench Press", sets: "4", reps: "8", load: "35 lb DBs", note: "Feet flat. Arch natural." },
-            { name: "Cable Row", sets: "4", reps: "10", load: "70 lbs", note: "Squeeze shoulder blades 2 sec" },
-            { name: "Landmine Press", sets: "3", reps: "8 each", load: "25 lbs + bar", note: "Half-kneeling position" },
-          ]},
-          { label: "Accessories", exercises: [
-            { name: "Face Pull", sets: "3", reps: "15", load: "Cable", note: "" },
-            { name: "Farmer Carry", sets: "3", reps: "40 yds", load: "50 lb DBs", note: "Shoulders packed. Breathe." },
-          ]},
-        ]},
-      ],
-      attachments: [
-        { name: "Week 12 Program.pdf", type: "pdf", size: "142 KB" },
-        { name: "Hip Hinge Cues.png", type: "image", size: "89 KB" },
+    sessionHistory: [
+      { date: "2025-08-26", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-08-28", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-02", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-04", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-09", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-11", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-23", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-25", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-09-30", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-09", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-13", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-16", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-21", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-23", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-10-30", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-04", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-06", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-11", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-13", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-18", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-11-25", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-12-04", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-12-09", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-12-16", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-12-18", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2025-12-23", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-08", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-13", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-15", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-20", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-22", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-27", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-01-29", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-02-05", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-02-10", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-02-12", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-02-24", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-02-26", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-03-05", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-03-10", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-03-17", type: "PT SESSION", note: "Personal Training 60 min" },
+      { date: "2026-03-24", type: "PT SESSION", note: "Personal Training 60 min" },
+    ],
+    financials: {
+      totalPurchased: 40,
+      totalUsed: 42,
+      totalSpent: 3400,
+      balance: -2,
+      packages: [
+        { date: "2025-08-15", sessions: 10, amount: 850 },
+        { date: "2025-10-20", sessions: 10, amount: 850 },
+        { date: "2025-12-22", sessions: 10, amount: 850 },
+        { date: "2026-01-29", sessions: 10, amount: 850 },
       ]
     },
-    assessments: [
-      { date: "Feb 27, 2026", type: "Quarterly Reassessment", assessor: "Dr. Simunac",
-        summary: "Significant bilateral improvements in hip and glute strength. Left glute med up 18% from baseline. Grip strength stable.",
-        metrics: [
-          { name: "L Glute Med", prev: 28, now: 33, unit: "lbs", change: "+18%", flag: "improved" },
-          { name: "R Glute Med", prev: 34, now: 36, unit: "lbs", change: "+6%", flag: "stable" },
-          { name: "L Grip", prev: 62, now: 64, unit: "lbs", change: "+3%", flag: "noise" },
-          { name: "R Grip", prev: 68, now: 69, unit: "lbs", change: "+1%", flag: "noise" },
-          { name: "L Shoulder ER", prev: 42, now: 48, unit: "deg", change: "+6 deg", flag: "improved" },
-          { name: "R Shoulder ER", prev: 50, now: 52, unit: "deg", change: "+2 deg", flag: "noise" },
-        ]},
-      { date: "Nov 20, 2025", type: "Initial Assessment", assessor: "Dr. Simunac",
-        summary: "Baseline established. Notable left glute med weakness (LSI 82%). Good grip strength bilaterally.",
-        metrics: [
-          { name: "L Glute Med", prev: null, now: 28, unit: "lbs", change: "Baseline", flag: "baseline" },
-          { name: "R Glute Med", prev: null, now: 34, unit: "lbs", change: "Baseline", flag: "baseline" },
-          { name: "L Grip", prev: null, now: 62, unit: "lbs", change: "Baseline", flag: "baseline" },
-          { name: "R Grip", prev: null, now: 68, unit: "lbs", change: "Baseline", flag: "baseline" },
-          { name: "L Shoulder ER", prev: null, now: 42, unit: "deg", change: "Baseline", flag: "baseline" },
-          { name: "R Shoulder ER", prev: null, now: 50, unit: "deg", change: "Baseline", flag: "baseline" },
-        ]},
-    ],
-    progress: [
-      { month: "Nov", lGluteMed: 28, rGluteMed: 34, lGrip: 62, rGrip: 68 },
-      { month: "Dec", lGluteMed: 29, rGluteMed: 34, lGrip: 62, rGrip: 68 },
-      { month: "Jan", lGluteMed: 30, rGluteMed: 35, lGrip: 63, rGrip: 68 },
-      { month: "Feb", lGluteMed: 33, rGluteMed: 36, lGrip: 64, rGrip: 69 },
-    ],
-    trainingLog: [
-      { week: "W9", sessions: 2, volume: 12400 },
-      { week: "W10", sessions: 2, volume: 13100 },
-      { week: "W11", sessions: 2, volume: 13800 },
-      { week: "W12", sessions: 1, volume: 7200 },
-    ],
-  },
-  {
-    id: "mike-chen", name: "Mike Chen", email: "mike.chen@email.com",
-    startDate: "2026-01-13", plan: "2x/week, Mon/Wed", status: "active",
-    nextSession: "Mon, Mar 16, 11:00 AM",
-    pack: { price: 800, total: 10, used: 4, purchaseDate: "2026-01-13", tier: "Standard" },
-    goals: ["Improve squat depth", "Fix anterior pelvic tilt", "Build core strength"],
-    notes: [{ date: "Mar 10", from: "Kristin", text: "Squat depth is improving. Ankle mobility still limiting. Added extra ankle warm-up." }],
     programming: {
-      weekLabel: "Week 8, Mar 10-14", phase: "Hypertrophy A",
-      days: [
-        { day: "Monday", date: "Mar 10", focus: "Full Body, Squat Focus", completed: true, blocks: [
-          { label: "Main Lifts", exercises: [
-            { name: "Goblet Squat", sets: "4", reps: "8", load: "45 lb KB", note: "Heels elevated on plate" },
-            { name: "DB Row", sets: "3", reps: "10 each", load: "40 lb DB", note: "" },
-          ]},
-        ]},
-        { day: "Wednesday", date: "Mar 12", focus: "Full Body, Hinge Focus", completed: false, blocks: [
-          { label: "Main Lifts", exercises: [
-            { name: "Trap Bar Deadlift", sets: "4", reps: "6", load: "185 lbs", note: "Drive through floor" },
-            { name: "Push-Up", sets: "3", reps: "12", load: "BW", note: "" },
-          ]},
-        ]},
-      ],
-      attachments: []
-    },
-    assessments: [
-      { date: "Jan 15, 2026", type: "Initial Assessment", assessor: "Dr. Simunac",
-        summary: "Baseline. Limited ankle dorsiflexion bilaterally. Core endurance below average.",
-        metrics: [
-          { name: "L Ankle DF", prev: null, now: 32, unit: "deg", change: "Baseline", flag: "baseline" },
-          { name: "R Ankle DF", prev: null, now: 34, unit: "deg", change: "Baseline", flag: "baseline" },
-        ]},
-    ],
-    progress: [
-      { month: "Jan", lGluteMed: 30, rGluteMed: 32, lGrip: 70, rGrip: 72 },
-      { month: "Feb", lGluteMed: 32, rGluteMed: 33, lGrip: 71, rGrip: 73 },
-    ],
-    trainingLog: [
-      { week: "W6", sessions: 2, volume: 9800 },
-      { week: "W7", sessions: 2, volume: 10400 },
-      { week: "W8", sessions: 1, volume: 5200 },
-    ],
-  },
-  {
-    id: "jenny-park", name: "Jenny Park", email: "jenny.p@email.com",
-    startDate: "2025-09-15", plan: "3x/week, Mon/Wed/Fri", status: "active",
-    nextSession: "Fri, Mar 14, 9:00 AM",
-    pack: { price: 750, total: 10, used: 9, purchaseDate: "2026-01-20", tier: "Founders Club" },
-    goals: ["Half marathon prep", "Prevent runner's knee", "Single-leg strength"],
-    notes: [
-      { date: "Mar 7", from: "Kristin", text: "Added tempo single-leg RDL. She is nailing the balance work." },
-      { date: "Mar 3", from: "Dr. Simunac", text: "Reassessment: LSI improved to 91% on quad. Cleared for increased mileage." },
-    ],
-    programming: {
-      weekLabel: "Week 24, Mar 10-14", phase: "Race Prep Block",
-      days: [
-        { day: "Monday", date: "Mar 10", focus: "Strength, Lower", completed: true, blocks: [
-          { label: "Main Lifts", exercises: [
-            { name: "Single-Leg RDL", sets: "3", reps: "8 each", load: "25 lb DB", note: "3 sec eccentric" },
-            { name: "Step-Up", sets: "3", reps: "10 each", load: "20 lb DBs", note: "" },
-          ]},
-        ]},
-        { day: "Wednesday", date: "Mar 12", focus: "Power + Core", completed: false, blocks: [
-          { label: "Main Lifts", exercises: [
-            { name: "Box Jump", sets: "4", reps: "5", load: "20 in box", note: "Soft landing. Step down." },
-            { name: "Plank", sets: "3", reps: "45 sec", load: "BW", note: "" },
-          ]},
-        ]},
-        { day: "Friday", date: "Mar 14", focus: "Mobility + Recovery", completed: false, blocks: [
-          { label: "Movement", exercises: [
-            { name: "Foam Roll IT Band", sets: "1", reps: "2 min each", load: "", note: "" },
-            { name: "Hip CARs", sets: "2", reps: "5 each", load: "BW", note: "" },
-          ]},
-        ]},
-      ],
-      attachments: []
-    },
-    assessments: [
-      { date: "Mar 3, 2026", type: "Quarterly Reassessment", assessor: "Dr. Simunac",
-        summary: "Quad LSI improved to 91%. Cleared for mileage increase. Calf strength still asymmetric.",
-        metrics: [
-          { name: "L Quad", prev: 45, now: 50, unit: "lbs", change: "+11%", flag: "stable" },
-          { name: "R Quad", prev: 52, now: 55, unit: "lbs", change: "+6%", flag: "noise" },
-          { name: "L Calf", prev: 38, now: 42, unit: "lbs", change: "+11%", flag: "stable" },
-          { name: "R Calf", prev: 48, now: 50, unit: "lbs", change: "+4%", flag: "noise" },
-        ]},
-    ],
-    progress: [
-      { month: "Sep", lGluteMed: 25, rGluteMed: 30, lGrip: 55, rGrip: 58 },
-      { month: "Dec", lGluteMed: 28, rGluteMed: 31, lGrip: 56, rGrip: 59 },
-      { month: "Mar", lGluteMed: 31, rGluteMed: 33, lGrip: 57, rGrip: 60 },
-    ],
-    trainingLog: [
-      { week: "W22", sessions: 3, volume: 11200 },
-      { week: "W23", sessions: 3, volume: 11800 },
-      { week: "W24", sessions: 1, volume: 4100 },
-    ],
-  },
-  {
-    id: "tom-russo", name: "Tom Russo", email: "tom.russo@email.com",
-    startDate: "2026-02-10", plan: "1x/week, Thu (Kinstretch)", status: "active",
-    nextSession: "Thu, Mar 13, 9:00 AM (Kinstretch)",
-    pack: { price: 850, total: 10, used: 2, purchaseDate: "2026-02-10", tier: "Standard" },
-    goals: ["Improve hip mobility for golf", "Reduce low back stiffness"],
-    notes: [{ date: "Mar 6", from: "Kristin", text: "First Kinstretch class. Struggled with hip CARs range. Good effort." }],
-    programming: {
-      weekLabel: "Week 4, Mar 10-14", phase: "Kinstretch Foundations",
-      days: [
-        { day: "Thursday", date: "Mar 13", focus: "Kinstretch Class, 9:00 AM", completed: false, blocks: [
-          { label: "Class Work", exercises: [
-            { name: "Hip CARs", sets: "3", reps: "5 each", load: "BW", note: "Focus on end-range control" },
-            { name: "Spine CARs", sets: "2", reps: "5", load: "BW", note: "" },
-            { name: "90/90 PAILs/RAILs", sets: "2", reps: "3 each", load: "BW", note: "20 sec contractions" },
-          ]},
-        ]},
-      ],
+      weekLabel: "Week 32", phase: "Active",
+      days: [],
       attachments: []
     },
     assessments: [],
     progress: [],
     trainingLog: [
-      { week: "W2", sessions: 1, volume: 0 },
-      { week: "W3", sessions: 1, volume: 0 },
-      { week: "W4", sessions: 0, volume: 0 },
+      { week: "W28", sessions: 2, volume: 0 },
+      { week: "W29", sessions: 2, volume: 0 },
+      { week: "W30", sessions: 2, volume: 0 },
+      { week: "W31", sessions: 2, volume: 0 },
+      { week: "W32", sessions: 2, volume: 0 },
     ],
   },
 ]
@@ -390,7 +259,7 @@ function LoginScreen({ onMockLogin }) {
     if (USE_MOCK) {
       const user = MOCK_USERS[firstName]
       if (user) { onMockLogin(user); return }
-      setError("Name not recognized. Try: Damir, Kristin, Sarah, Mike, Jenny, or Tom")
+      setError("Name not recognized. Try: Damir, Kristin, or 575")
       return
     }
 
@@ -919,14 +788,14 @@ function ScheduleView({ clients }) {
 
 // Mock hours data for demo mode
 const MOCK_HOURS = [
-  { id: "h1", date: "2026-03-11", clientName: "Sarah Mitchell", clientId: "sarah-mitchell", type: "training", hours: 1, note: "Lower body session" },
-  { id: "h2", date: "2026-03-11", clientName: "General", clientId: null, type: "programming", hours: 1.5, note: "Updated Sarah and Mike programs" },
-  { id: "h3", date: "2026-03-10", clientName: "Mike Chen", clientId: "mike-chen", type: "training", hours: 1, note: "Full body squat focus" },
-  { id: "h4", date: "2026-03-10", clientName: "Jenny Park", clientId: "jenny-park", type: "training", hours: 1, note: "Strength lower" },
-  { id: "h5", date: "2026-03-06", clientName: "Tom Russo", clientId: "tom-russo", type: "kinstretch", hours: 1, note: "Group class" },
-  { id: "h6", date: "2026-03-06", clientName: "Sarah Mitchell", clientId: "sarah-mitchell", type: "training", hours: 1, note: "Upper body push/pull" },
-  { id: "h7", date: "2026-03-05", clientName: "General", clientId: null, type: "admin", hours: 0.5, note: "Client intake call" },
-  { id: "h8", date: "2026-03-04", clientName: "Mike Chen", clientId: "mike-chen", type: "training", hours: 1, note: "Hinge focus" },
+  { id: "h1", date: "2026-03-24", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h2", date: "2026-03-17", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h3", date: "2026-03-10", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h4", date: "2026-03-05", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h5", date: "2026-02-26", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h6", date: "2026-02-24", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h7", date: "2026-02-12", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
+  { id: "h8", date: "2026-02-10", clientName: "#575", clientId: "client-575", type: "training", hours: 1, note: "Personal Training 60 min" },
 ]
 
 const ENTRY_TYPES = [
