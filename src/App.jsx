@@ -56,7 +56,11 @@ const MOCK_USERS = {
   "kristin": { id: "u2", email: "kristin@activehealthchicago.com", role: "trainer", name: "Kristin" },
   "575": { id: "u3", email: "client575@ahf.local", role: "client", name: "#575", clientId: "client-575" },
 }
-const SHARED_PASSWORD = "AHF"
+const USER_PASSWORDS = {
+  "damir": "AHSS",
+  "kristin": "AHF",
+  "575": "AHF",
+}
 
 // Map first names to emails for Supabase auth (production)
 const NAME_TO_EMAIL = {
@@ -254,7 +258,8 @@ function LoginScreen({ onMockLogin }) {
     setError("")
     const firstName = name.trim().toLowerCase()
     if (!firstName) { setError("Enter your first name."); return }
-    if (password !== SHARED_PASSWORD) { setError("Wrong password."); return }
+    const expectedPw = USER_PASSWORDS[firstName]
+    if (!expectedPw || password !== expectedPw) { setError("Wrong password."); return }
 
     if (USE_MOCK) {
       const user = MOCK_USERS[firstName]
@@ -280,7 +285,7 @@ function LoginScreen({ onMockLogin }) {
       }
       if (!email) { setError("Name not found. Contact Dr. Simunac for access."); setLogging(false); return }
 
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password: SHARED_PASSWORD })
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) { setError(authError.message); setLogging(false); return }
     } catch (err) { setError("Login failed. Try again."); setLogging(false) }
   }
@@ -309,11 +314,11 @@ function LoginScreen({ onMockLogin }) {
           <Card style={{ boxShadow: T.shadow.md }}>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>FIRST NAME</label>
-              <Input value={name} onChange={setName} placeholder="Damir" type="text" />
+              <Input value={name} onChange={setName} placeholder="" type="text" />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, display: "block", marginBottom: 6 }}>PASSWORD</label>
-              <Input value={password} onChange={setPassword} placeholder="AHF" type="password" />
+              <Input value={password} onChange={setPassword} placeholder="" type="password" />
             </div>
             {error && <div style={{ fontSize: 12, color: T.red, marginBottom: 12, padding: "8px 12px", backgroundColor: "#FEF2F2", borderRadius: T.r.sm }}>{error}</div>}
             <button type="submit" disabled={logging} style={{
