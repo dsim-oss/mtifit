@@ -46,7 +46,8 @@ function useAppHistory(defaultPage) {
 }
 
 // ── Use mock data when Supabase isn't configured ──
-const USE_MOCK = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://your-project.supabase.co'
+// TODO: flip back to false once Supabase auth passwords are reset
+const USE_MOCK = true
 
 // ── Mock Data ──
 // Login by first name (case-insensitive) + shared password "AHF"
