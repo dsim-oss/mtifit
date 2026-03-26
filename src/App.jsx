@@ -418,7 +418,7 @@ function LoginScreen({ onMockLogin }) {
 
   return (
     <div style={{
-      minHeight: "100vh", minHeight: "100dvh",
+      minHeight: "100dvh",
       display: "flex", alignItems: "center", justifyContent: "center",
       backgroundColor: T.warmBg, padding: 20,
     }}>
@@ -1502,9 +1502,9 @@ export default function App() {
     window.history.replaceState(null, "", window.location.pathname)
   }
 
-  if (loading) return <div style={{ minHeight: "100vh", minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280" }}>Loading...</div>
+  if (loading) return <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280" }}>Loading...</div>
   if (!user) return <LoginScreen onMockLogin={setUser} />
-  if (dataLoading) return <div style={{ minHeight: "100vh", minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280", gap: 12 }}><Spinner /><span>Loading your dashboard...</span></div>
+  if (dataLoading) return <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: T.sans, color: "#6B7280", gap: 12 }}><Spinner /><span>Loading your dashboard...</span></div>
 
   const clientData = user.role === "client" ? allClients.find(c => c.id === user.clientId) || allClients[0] : null
 
